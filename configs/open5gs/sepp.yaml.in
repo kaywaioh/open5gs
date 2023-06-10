@@ -25,6 +25,30 @@ logger:
     file: @localstatedir@/log/open5gs/sepp.log
 
 #
+#  o PLMN ID
+#  - 5G roaming requires PLMN in NRF configuration.
+#  - If not provided in NF, the PLMN of the NRF are assumed for the NF.
+#
+#  plmn:
+#    - id:
+#        mcc: 999
+#        mnc: 70
+#    - id:
+#        mcc: 001
+#        mnc: 01
+#    - id:
+#        mcc: 002
+#        mnc: 02
+#
+plmn:
+    - id:
+        mcc: 001
+        mnc: 01
+    - id:
+        mcc: 002
+        mnc: 02
+
+#
 #  o TLS enable/disable
 #  sbi:
 #    server|client:
@@ -178,50 +202,19 @@ sbi:
 #          l_onoff: true
 #          l_linger: 10
 #
-#  <SCP Information>
+#  <SEPP Information>
 #
-#  o SCP port number(s) WITHOUT SCP Domain
-#    - If no SCP port information is present in ScpInfo or
-#      in ScpDomainInfo for a specific SCP domain,
-#      the HTTP client shall use the default HTTP port number,
-#      i.e. TCP port 80 for "http" URIs or TCP port 443
-#      for "https" URIs as specified in IETF RFC 7540 [9]
-#      when sending a request to the SCP within the specific SCP domain.
+#  o SEPP port number(s) for HTTP and/or HTTPS
+#    - This attribute shall be present if the SEPP uses non-default HTTP and/or
+#      HTTPS ports. When present, it shall contain the HTTP and/or HTTPS ports.
+#
+#  Minimum: 0 Maximum: 65535
+#
 #  sepp:
 #    info:
 #      port:
 #        http: 7777
 #        https: 8888
-#
-#  o SCP port number(s) WITH SCP Domain
-#    - If this attribute is present,
-#      it has precedence over the seppPorts attribute of ScpInfo.
-#  sepp:
-#    info:
-#      domain:
-#        - name: SCP_Domain_1
-#          fqdn: sepp.localdomain
-#          port:
-#            http: 7777
-#            https: 8888
-#
-#  o Complex Example
-#  sepp:
-#    info:
-#      port:
-#        http: 7777
-#        https: 8888
-#      domain:
-#        - name: SCP_Domain_1
-#          fqdn: sepp.hplmndomain
-#          port:
-#            http: 3333
-#            https: 4444
-#        - name: SCP_Domain_2
-#          fqdn: sepp.vplmndomain
-#          port:
-#            http: 5555
-#            https: 6666
 #
 #  <For Indirect Communication with Delegated Discovery>
 #
@@ -254,34 +247,71 @@ sbi:
 #  o Don't use SCP server => App fails if no NRF available.
 #      delegated: no
 #
+#  <SEPP Exmaple>
+#
+#  o SEPP1
+#
+#  sepp:
+#    fqdn: sepp1.localdomain
+#    sbi:
+#      - addr: 127.0.2.10
+#        port: 7777
+#    peer:
+#      - fqdn: sepp2.localdomain
+#        uri: http://127.0.2.11:7777
+#        plmn_id:
+#          mcc: 999
+#          mnc: 70
+#
+#  o SEPP2
+#
+#  sepp:
+#    fqdn: sepp2.localdomain
+#    sbi:
+#      - addr: 127.0.2.11
+#        port: 7777
+#    peer:
+#      - fqdn: sepp1.localdomain
+#        uri: http://127.0.2.10:7777
+#        plmn_id:
+#          mcc: 001
+#          mnc: 01
 sepp:
+    fqdn: sepp1.localdomain
     sbi:
       - addr: 127.0.2.10
         port: 7777
+    peer:
+      - fqdn: sepp2.localdomain
+        uri: http://127.0.2.11:7777
+        plmn_id:
+          mcc: 999
+          mnc: 70
 
-#  <Next hop SCP>
 #
-#  o SBI Client(http://127.0.2.10:7777)
+#  <SBI Client>>
+#
+#  o SBI Client(http://127.0.1.10:7777)
 #  sbi:
 #    client:
 #      no_tls: true
-#  next_sepp:
+#  scp:
 #    sbi:
-#      addr: 127.0.2.10
+#      addr: 127.0.1.10
 #      port: 7777
 #
-#  o SBI Client(https://127.0.2.10:443, https://[::1]:443) without verification
+#  o SBI Client(https://127.0.1.10:443, https://[::1]:443) without verification
 #  sbi:
 #    client:
 #      no_verify: true
 #      key: /etc/open5gs/tls/amf.key
 #      cert: /etc/open5gs/tls/amf.crt
-#  next_sepp:
+#  scp:
 #    sbi:
-#      - addr: 127.0.2.10
+#      - addr: 127.0.1.10
 #      - addr: ::1
 #
-#  o SBI Client(https://sepp.open5gs.org:443)
+#  o SBI Client(https://scp.open5gs.org:443)
 #    Use the specified certificate while verifying the server
 #
 #  sbi:
@@ -289,20 +319,20 @@ sepp:
 #      cacert: /etc/open5gs/tls/ca.crt
 #      key: /etc/open5gs/tls/amf.key
 #      cert: /etc/open5gs/tls/amf.crt
-#  next_sepp:
+#  scp:
 #    sbi:
-#      - name: sepp.open5gs.org
+#      - name: scp.open5gs.org
 #
 #  o SBI Client(http://[fd69:f21d:873c:fb::1]:80)
-#    If prefer_ipv4 is true, http://127.0.2.10:80 is selected.
+#    If prefer_ipv4 is true, http://127.0.1.10:80 is selected.
 #
 #  sbi:
 #    client:
 #      no_tls: true
-#  next_sepp:
+#  scp:
 #    sbi:
 #      addr:
-#        - 127.0.2.10
+#        - 127.0.1.10
 #        - fd69:f21d:873c:fb::1
 #
 #  o SBI Option (Default)
@@ -312,9 +342,9 @@ sepp:
 #  sbi:
 #    client:
 #      no_tls: true
-#  next_sepp:
+#  scp:
 #    sbi:
-#      addr: 127.0.2.10
+#      addr: 127.0.1.10
 #      option:
 #        tcp_nodelay: false
 #        so_linger:
@@ -322,6 +352,10 @@ sepp:
 #          l_linger: 10
 #
 #
+scp:
+    sbi:
+      - addr: 127.0.1.10
+        port: 7777
 
 #
 #  <SBI Client>>
@@ -382,12 +416,12 @@ sepp:
 #          l_onoff: true
 #          l_linger: 10
 #
-nrf:
-    sbi:
-      - addr:
-          - 127.0.0.10
-          - ::1
-        port: 7777
+#nrf:
+#    sbi:
+#      - addr:
+#          - 127.0.0.10
+#          - ::1
+#        port: 7777
 
 #
 #  o Disable use of IPv4 addresses (only IPv6)

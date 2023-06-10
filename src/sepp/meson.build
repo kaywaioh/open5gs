@@ -18,6 +18,12 @@
 libsepp_sources = files('''
     context.c
     event.c
+    timer.c
+
+    n32c-build.c
+    n32c-handler.c
+
+    handshake-sm.c
 
     sbi-path.c
     sepp-sm.c

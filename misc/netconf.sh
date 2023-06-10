@@ -42,6 +42,26 @@ else
     ifconfig lo0 alias 127.0.1.12 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.2.10 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.2.11 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.2.12 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.2 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.3 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.4 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.5 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.6 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.7 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.8 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.9 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.10 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.11 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.12 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.13 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.14 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.15 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.16 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.17 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.18 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.19 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.3.20 netmask 255.255.255.255
     if [ "$SYSTEM" = "Darwin" ]; then
         if ! test -f /etc/pf.anchors/org.open5gs; then
             sudo sh -c "echo 'nat on {en0} from 10.45.0.0/16 to any -> {en0}' > /etc/pf.anchors/org.open5gs"

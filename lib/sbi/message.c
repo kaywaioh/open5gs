@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -183,6 +183,10 @@ void ogs_sbi_message_free(ogs_sbi_message_t *message)
         OpenAPI_sdm_subscription_free(message->SDMSubscription);
     if (message->ModificationNotification)
         OpenAPI_modification_notification_free(message->ModificationNotification);
+    if (message->SecNegotiateReqData)
+        OpenAPI_sec_negotiate_req_data_free(message->SecNegotiateReqData);
+    if (message->SecNegotiateRspData)
+        OpenAPI_sec_negotiate_rsp_data_free(message->SecNegotiateRspData);
 
     /* HTTP Part */
     for (i = 0; i < message->num_of_part; i++) {
@@ -1182,10 +1186,17 @@ static char *build_json(ogs_sbi_message_t *message)
         item = OpenAPI_sdm_subscription_convertToJSON(
                 message->SDMSubscription);
         ogs_assert(item);
-    }
-    else if (message->ModificationNotification) {
+    } else if (message->ModificationNotification) {
         item = OpenAPI_modification_notification_convertToJSON(
             message->ModificationNotification);
+        ogs_assert(item);
+    } else if (message->SecNegotiateReqData) {
+        item = OpenAPI_sec_negotiate_req_data_convertToJSON(
+            message->SecNegotiateReqData);
+        ogs_assert(item);
+    } else if (message->SecNegotiateRspData) {
+        item = OpenAPI_sec_negotiate_rsp_data_convertToJSON(
+            message->SecNegotiateRspData);
         ogs_assert(item);
     }
 
@@ -2114,6 +2125,39 @@ static int parse_json(ogs_sbi_message_t *message,
                         ogs_error("Unknown method [%s]", message->h.method);
                     END
                 }
+                break;
+            DEFAULT
+                rv = OGS_ERROR;
+                ogs_error("Unknown resource name [%s]",
+                        message->h.resource.component[0]);
+            END
+            break;
+
+        CASE(OGS_SBI_SERVICE_NAME_N32C_HANDSHAKE)
+            SWITCH(message->h.resource.component[0])
+            CASE(OGS_SBI_RESOURCE_NAME_EXCHANGE_CAPABILITY)
+                SWITCH(message->h.method)
+                CASE(OGS_SBI_HTTP_METHOD_POST)
+                    if (message->res_status == 0) {
+                        message->SecNegotiateReqData =
+                            OpenAPI_sec_negotiate_req_data_parseFromJSON(item);
+                        if (!message->SecNegotiateReqData) {
+                            rv = OGS_ERROR;
+                            ogs_error("JSON parse error");
+                        }
+                    } else if (message->res_status == OGS_SBI_HTTP_STATUS_OK) {
+                        message->SecNegotiateRspData =
+                            OpenAPI_sec_negotiate_rsp_data_parseFromJSON(item);
+                        if (!message->SecNegotiateRspData) {
+                            rv = OGS_ERROR;
+                            ogs_error("JSON parse error");
+                        }
+                    }
+                    break;
+                DEFAULT
+                    rv = OGS_ERROR;
+                    ogs_error("Unknown method [%s]", message->h.method);
+                END
                 break;
             DEFAULT
                 rv = OGS_ERROR;

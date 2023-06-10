@@ -103,10 +103,10 @@ static void regenerate_all_timer_duration(void)
     self.time.message.sbi.client_wait_duration = self.time.message.duration;
     self.time.message.sbi.connection_deadline =
         self.time.message.sbi.client_wait_duration + ogs_time_from_sec(1);
-    self.time.message.sbi.nf_register_interval =
+    self.time.message.sbi.reconnect_interval =
         ogs_max(ogs_time_from_sec(3),
             self.time.message.sbi.client_wait_duration + ogs_time_from_sec(1));
-    self.time.message.sbi.nf_register_interval_in_exception =
+    self.time.message.sbi.reconnect_interval_in_exception =
                 ogs_time_from_sec(2);
 
 #define PFCP_N1_RESPONSE_RETRY_COUNT  3
@@ -159,7 +159,7 @@ static void regenerate_all_timer_duration(void)
         self.time.message.gtp.n3_holding_rcount,
         (long long)self.time.message.gtp.t3_holding_duration);
     ogs_trace("%lld, %lld, %lld",
-        (long long)self.time.message.sbi.nf_register_interval,
+        (long long)self.time.message.sbi.reconnect_interval,
         (long long)self.time.message.pfcp.association_interval,
         (long long)self.time.message.pfcp.no_heartbeat_duration);
 #endif
@@ -300,6 +300,9 @@ int ogs_app_context_parse_config(void)
                         ogs_yaml_iter_bool(&parameter_iter);
                 } else if (!strcmp(parameter_key, "no_scp")) {
                     self.parameter.no_scp =
+                        ogs_yaml_iter_bool(&parameter_iter);
+                } else if (!strcmp(parameter_key, "no_sepp")) {
+                    self.parameter.no_sepp =
                         ogs_yaml_iter_bool(&parameter_iter);
                 } else if (!strcmp(parameter_key, "no_amf")) {
                     self.parameter.no_amf =
@@ -532,6 +535,55 @@ int ogs_app_context_parse_config(void)
                 } else
                     ogs_warn("unknown key `%s`", time_key);
             }
+        } else if (!strcmp(root_key, "plmn")) {
+            ogs_yaml_iter_t plmn_array, plmn_iter;
+            ogs_yaml_iter_recurse(&root_iter, &plmn_array);
+            do {
+                const char *mnc = NULL, *mcc = NULL;
+                ogs_assert(self.num_of_plmn_id < OGS_MAX_NUM_OF_PLMN);
+
+                if (ogs_yaml_iter_type(&plmn_array) == YAML_MAPPING_NODE) {
+                    memcpy(&plmn_iter, &plmn_array, sizeof(ogs_yaml_iter_t));
+                } else if (ogs_yaml_iter_type(&plmn_array) ==
+                    YAML_SEQUENCE_NODE) {
+                    if (!ogs_yaml_iter_next(&plmn_array))
+                        break;
+                    ogs_yaml_iter_recurse(&plmn_array, &plmn_iter);
+                } else if (ogs_yaml_iter_type(&plmn_array) == YAML_SCALAR_NODE) {
+                    break;
+                } else
+                    ogs_assert_if_reached();
+
+                while (ogs_yaml_iter_next(&plmn_iter)) {
+                    const char *plmn_key = ogs_yaml_iter_key(&plmn_iter);
+                    ogs_assert(plmn_key);
+                    if (!strcmp(plmn_key, "id")) {
+                        ogs_yaml_iter_t id_iter;
+
+                        ogs_yaml_iter_recurse(&plmn_iter, &id_iter);
+                        while (ogs_yaml_iter_next(&id_iter)) {
+                            const char *id_key = ogs_yaml_iter_key(&id_iter);
+                            ogs_assert(id_key);
+                            if (!strcmp(id_key, "mcc")) {
+                                mcc = ogs_yaml_iter_value(&id_iter);
+                            } else if (!strcmp(id_key, "mnc")) {
+                                mnc = ogs_yaml_iter_value(&id_iter);
+                            }
+                        }
+
+                        if (mcc && mnc) {
+                            ogs_plmn_id_build(
+                                    &self.plmn_id[self.num_of_plmn_id],
+                                    atoi(mcc), atoi(mnc), strlen(mnc));
+                            self.num_of_plmn_id++;
+                        } else {
+                            ogs_error("Invalid [MCC:%s, MNC:%s]", mcc, mnc);
+                        }
+                    } else
+                        ogs_warn("unknown key `%s`", plmn_key);
+                }
+            } while (ogs_yaml_iter_type(&plmn_array) ==
+                    YAML_SEQUENCE_NODE);
         } else if (!strcmp(root_key, "sbi")) {
             ogs_yaml_iter_t tls_iter;
             ogs_yaml_iter_recurse(&root_iter, &tls_iter);

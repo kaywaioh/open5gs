@@ -31,6 +31,16 @@ void sepp_state_final(ogs_fsm_t *s, sepp_event_t *e);
 void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e);
 void sepp_state_exception(ogs_fsm_t *s, sepp_event_t *e);
 
+void sepp_handshake_state_initial(ogs_fsm_t *s, sepp_event_t *e);
+void sepp_handshake_state_final(ogs_fsm_t *s, sepp_event_t *e);
+void sepp_handshake_state_will_establish(ogs_fsm_t *s, sepp_event_t *e);
+void sepp_handshake_state_established(ogs_fsm_t *s, sepp_event_t *e);
+void sepp_handshake_state_terminated(ogs_fsm_t *s, sepp_event_t *e);
+void sepp_handshake_state_exception(ogs_fsm_t *s, sepp_event_t *e);
+
+void sepp_handshake_fsm_init(sepp_node_t *sepp_node, bool try_to_establish);
+void sepp_handshake_fsm_fini(sepp_node_t *sepp_node);
+
 #define sepp_sm_debug(__pe) \
     ogs_debug("%s(): %s", __func__, sepp_event_get_name(__pe))
 

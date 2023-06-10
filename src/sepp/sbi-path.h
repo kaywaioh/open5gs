@@ -20,7 +20,7 @@
 #ifndef SEPP_SBI_PATH_H
 #define SEPP_SBI_PATH_H
 
-#include "context.h"
+#include "n32c-build.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +28,11 @@ extern "C" {
 
 int sepp_sbi_open(void);
 void sepp_sbi_close(void);
+
+bool sepp_n32c_handshake_send_security_capability_request(
+        sepp_node_t *sepp_node, bool none);
+void sepp_n32c_handshake_send_security_capability_response(
+        sepp_node_t *sepp_node, ogs_sbi_stream_t *stream);
 
 #ifdef __cplusplus
 }

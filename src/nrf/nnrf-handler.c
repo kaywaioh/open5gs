@@ -42,6 +42,19 @@ bool nrf_nnrf_handle_nf_register(ogs_sbi_nf_instance_t *nf_instance,
 
     ogs_nnrf_nfm_handle_nf_profile(nf_instance, NFProfile);
 
+    /*
+     * TS29.510
+     * Table 6.1.6.2.2-1: Definition of type NFProfile
+     * If not provided, the PLMN of the NRF are assumed for the NF.
+     */
+    if (ogs_app()->num_of_plmn_id && NFProfile->plmn_list == NULL) {
+        /* NRF has PLMN and NF does NOT have PLMN,
+         * so, copy NRF PLMN to NF PLMN */
+        memcpy(nf_instance->plmn_id, ogs_app()->plmn_id,
+                sizeof(nf_instance->plmn_id));
+        nf_instance->num_of_plmn_id = ogs_app()->num_of_plmn_id;
+    }
+
     if (OGS_FSM_CHECK(&nf_instance->sm, nrf_nf_state_will_register)) {
         recvmsg->http.location = recvmsg->h.uri;
         status = OGS_SBI_HTTP_STATUS_CREATED;
@@ -66,6 +79,9 @@ bool nrf_nnrf_handle_nf_register(ogs_sbi_nf_instance_t *nf_instance,
         OpenAPI_nf_profile_t NFProfileChanges;
         ogs_sbi_message_t sendmsg;
 
+        OpenAPI_plmn_id_t *PlmnId = NULL;
+        OpenAPI_lnode_t *node = NULL;
+
         memset(&NFProfileChanges, 0, sizeof(NFProfileChanges));
         NFProfileChanges.nf_instance_id = NFProfile->nf_instance_id;
         NFProfileChanges.nf_type = NFProfile->nf_type;
@@ -80,11 +96,37 @@ bool nrf_nnrf_handle_nf_register(ogs_sbi_nf_instance_t *nf_instance,
         NFProfileChanges.is_nf_profile_changes_ind = true;
         NFProfileChanges.nf_profile_changes_ind = true;
 
+        if (ogs_app()->num_of_plmn_id && NFProfile->plmn_list == NULL) {
+            OpenAPI_list_t *PlmnIdList = NULL;
+            int i;
+
+            PlmnIdList = OpenAPI_list_create();
+            ogs_assert(PlmnIdList);
+
+            for (i = 0; i < ogs_app()->num_of_plmn_id; i++) {
+                PlmnId = ogs_sbi_build_plmn_id(&ogs_app()->plmn_id[i]);
+                ogs_assert(PlmnId);
+                OpenAPI_list_add(PlmnIdList, PlmnId);
+            }
+
+            if (PlmnIdList->count)
+                NFProfileChanges.plmn_list = PlmnIdList;
+            else
+                OpenAPI_list_free(PlmnIdList);
+        }
+
         memset(&sendmsg, 0, sizeof(sendmsg));
         sendmsg.http.location = recvmsg->http.location;
         sendmsg.NFProfile = &NFProfileChanges;
 
         response = ogs_sbi_build_response(&sendmsg, status);
+
+        OpenAPI_list_for_each(NFProfileChanges.plmn_list, node) {
+            PlmnId = node->data;
+            if (PlmnId)
+                ogs_sbi_free_plmn_id(PlmnId);
+        }
+        OpenAPI_list_free(NFProfileChanges.plmn_list);
 
     } else {
 

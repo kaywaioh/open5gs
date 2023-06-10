@@ -39,6 +39,8 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
 {
     int rv;
 
+    sepp_node_t *sepp_node = NULL;
+
     ogs_sbi_stream_t *stream = NULL;
     ogs_sbi_request_t *request = NULL;
 
@@ -46,7 +48,6 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
     ogs_sbi_subscription_data_t *subscription_data = NULL;
     ogs_sbi_response_t *response = NULL;
     ogs_sbi_message_t message;
-    ogs_sbi_xact_t *sbi_xact = NULL;
 
     sepp_sm_debug(e);
 
@@ -114,6 +115,62 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                         "Invalid resource name",
                         message.h.resource.component[0]));
             END
+            break;
+
+        CASE(OGS_SBI_SERVICE_NAME_N32C_HANDSHAKE)
+            SWITCH(message.h.resource.component[0])
+            CASE(OGS_SBI_RESOURCE_NAME_EXCHANGE_CAPABILITY)
+                SWITCH(message.h.method)
+                CASE(OGS_SBI_HTTP_METHOD_POST)
+                    if (message.SecNegotiateReqData &&
+                        message.SecNegotiateReqData->sender) {
+                        sepp_node = sepp_node_find(
+                                message.SecNegotiateReqData->sender);
+                        if (!sepp_node) {
+                            sepp_node = sepp_node_add(
+                                message.SecNegotiateReqData->sender);
+                            ogs_assert(sepp_node);
+
+                            sepp_handshake_fsm_init(sepp_node, false);
+                        }
+                    }
+                    break;
+
+                DEFAULT
+                    ogs_error("Invalid HTTP method [%s]", message.h.method);
+                    ogs_assert(true ==
+                        ogs_sbi_server_send_error(stream,
+                            OGS_SBI_HTTP_STATUS_FORBIDDEN, &message,
+                            "Invalid HTTP method", message.h.method));
+                END
+                break;
+
+            DEFAULT
+                ogs_error("Invalid resource name [%s]",
+                        message.h.resource.component[0]);
+                ogs_assert(true ==
+                    ogs_sbi_server_send_error(stream,
+                        OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
+                        "Invalid resource name",
+                        message.h.resource.component[0]));
+            END
+
+            if (!sepp_node) {
+                ogs_error("Not found [%s]", message.h.method);
+                ogs_assert(true ==
+                    ogs_sbi_server_send_error(
+                        stream, OGS_SBI_HTTP_STATUS_NOT_FOUND,
+                        &message, "Not found", message.h.method));
+                break;
+            }
+
+            ogs_assert(OGS_FSM_STATE(&sepp_node->sm));
+
+            e->sepp_node = sepp_node;
+            e->h.sbi.message = &message;
+            ogs_fsm_dispatch(&sepp_node->sm, e);
+            if (OGS_FSM_CHECK(&sepp_node->sm, sepp_handshake_state_exception))
+                ogs_error("[%s] State machine exception", sepp_node->fqdn);
             break;
 
         DEFAULT
@@ -206,7 +263,27 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                     ogs_assert_if_reached();
                 END
                 break;
-            
+
+            DEFAULT
+                ogs_error("Invalid resource name [%s]",
+                        message.h.resource.component[0]);
+                ogs_assert_if_reached();
+            END
+            break;
+
+        CASE(OGS_SBI_SERVICE_NAME_N32C_HANDSHAKE)
+
+            SWITCH(message.h.resource.component[0])
+            CASE(OGS_SBI_RESOURCE_NAME_EXCHANGE_CAPABILITY)
+                sepp_node = e->h.sbi.data;
+                ogs_assert(sepp_node);
+                ogs_assert(OGS_FSM_STATE(&sepp_node->sm));
+
+                e->sepp_node = sepp_node;
+                e->h.sbi.message = &message;
+                ogs_fsm_dispatch(&sepp_node->sm, e);
+                break;
+
             DEFAULT
                 ogs_error("Invalid resource name [%s]",
                         message.h.resource.component[0]);
@@ -227,6 +304,17 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
         ogs_assert(e);
 
         switch(e->h.timer_id) {
+        case SEPP_TIMER_PEER_ESTABLISH:
+            sepp_node = e->sepp_node;
+            ogs_assert(sepp_node);
+            ogs_assert(OGS_FSM_STATE(&sepp_node->sm));
+
+            ogs_fsm_dispatch(&sepp_node->sm, e);
+            if (OGS_FSM_CHECK(&sepp_node->sm, sepp_handshake_state_exception))
+                ogs_error("[%s] State machine exception [%d]",
+                        sepp_node->fqdn, e->h.timer_id);
+            break;
+
         case OGS_TIMER_NF_INSTANCE_REGISTRATION_INTERVAL:
         case OGS_TIMER_NF_INSTANCE_HEARTBEAT_INTERVAL:
         case OGS_TIMER_NF_INSTANCE_NO_HEARTBEAT:
@@ -267,55 +355,6 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
 
             ogs_info("[%s] Need to update Subscription",
                     subscription_data->id);
-            break;
-
-        case OGS_TIMER_SBI_CLIENT_WAIT:
-            /*
-             * ogs_pollset_poll() receives the time of the expiration
-             * of next timer as an argument. If this timeout is
-             * in very near future (1 millisecond), and if there are
-             * multiple events that need to be processed by ogs_pollset_poll(),
-             * these could take more than 1 millisecond for processing,
-             * resulting in the timer already passed the expiration.
-             *
-             * In case that another NF is under heavy load and responds
-             * to an SBI request with some delay of a few seconds,
-             * it can happen that ogs_pollset_poll() adds SBI responses
-             * to the event list for further processing,
-             * then ogs_timer_mgr_expire() is called which will add
-             * an additional event for timer expiration. When all events are
-             * processed one-by-one, the SBI xact would get deleted twice
-             * in a row, resulting in a crash.
-             *
-             * 1. ogs_pollset_poll()
-             *    message was received and put into an event list,
-             * 2. ogs_timer_mgr_expire()
-             *    add an additional event for timer expiration
-             * 3. message event is processed. (free SBI xact)
-             * 4. timer expiration event is processed. (double-free SBI xact)
-             *
-             * To avoid double-free SBI xact,
-             * we need to check ogs_sbi_xact_cycle()
-             */
-            sbi_xact = ogs_sbi_xact_cycle(e->h.sbi.data);
-            if (!sbi_xact) {
-                ogs_error("SBI transaction has already been removed");
-                break;
-            }
-
-            stream = sbi_xact->assoc_stream;
-            /* Here, we should not use ogs_assert(stream)
-             * since 'namf-comm' service has no an associated stream. */
-
-            ogs_sbi_xact_remove(sbi_xact);
-
-            ogs_error("Cannot receive SBI message");
-            if (stream) {
-                ogs_assert(true ==
-                    ogs_sbi_server_send_error(stream,
-                        OGS_SBI_HTTP_STATUS_GATEWAY_TIMEOUT, NULL,
-                        "Cannot receive SBI message", NULL));
-            }
             break;
 
         default:

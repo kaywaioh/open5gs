@@ -143,6 +143,8 @@ extern "C" {
 
 #define OGS_SBI_RESOURCE_NAME_PCF_BINDINGS          "pcfBindings"
 
+#define OGS_SBI_RESOURCE_NAME_EXCHANGE_CAPABILITY   "exchange-capability"
+
 #define OGS_SBI_PATCH_PATH_NF_STATUS                "/nfStatus"
 #define OGS_SBI_PATCH_PATH_LOAD                     "/load"
 #define OGS_SBI_PATCH_PATH_VALIDITY_TIME            "/validityTime"
@@ -238,6 +240,8 @@ extern "C" {
 #define OGS_SBI_NBSF_MANAGEMENT_SAME_PCF 3
 #define OGS_SBI_NBSF_MANAGEMENT_ES3XX 4
 #define OGS_SBI_NBSF_MANAGEMENT_EXTENDED_SAME_PCF 5
+
+#define OGS_SBI_N32_HANDSHAKE_NFTLST 1
 
 #define OGS_SBI_SCHEME                              ":scheme"
 #define OGS_SBI_AUTHORITY                           ":authority"
@@ -509,6 +513,8 @@ typedef struct ogs_sbi_message_s {
     OpenAPI_deregistration_data_t *DeregistrationData;
     OpenAPI_sdm_subscription_t *SDMSubscription;
     OpenAPI_modification_notification_t *ModificationNotification;
+    OpenAPI_sec_negotiate_req_data_t *SecNegotiateReqData;
+    OpenAPI_sec_negotiate_rsp_data_t *SecNegotiateRspData;
 
     ogs_sbi_links_t *links;
 

@@ -51,6 +51,10 @@ tls_security = '''
     testserver.crt
     testclient.key
     testclient.crt
+    sepp1.key
+    sepp1.crt
+    sepp2.key
+    sepp2.crt
 '''.split()
 
 foreach file : tls_security

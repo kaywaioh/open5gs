@@ -26,14 +26,11 @@
 extern "C" {
 #endif
 
-typedef struct sepp_sess_s sepp_sess_t;
-typedef struct ogs_sbi_nf_instance_s ogs_sbi_nf_instance_t;
+typedef struct sepp_node_s sepp_node_t;
 
 typedef struct sepp_event_s {
     ogs_event_t h;
-
-    ogs_sbi_nf_instance_t *nf_instance;
-    sepp_sess_t *sess;
+    sepp_node_t *sepp_node;
 } sepp_event_t;
 
 OGS_STATIC_ASSERT(OGS_EVENT_SIZE >= sizeof(sepp_event_t));

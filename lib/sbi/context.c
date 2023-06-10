@@ -1264,6 +1264,10 @@ static void scp_info_free(ogs_sbi_scp_info_t *scp_info)
     scp_info->num_of_domain = 0;
 }
 
+static void sepp_info_free(ogs_sbi_sepp_info_t *sepp_info)
+{
+}
+
 void ogs_sbi_nf_info_remove(ogs_list_t *list, ogs_sbi_nf_info_t *nf_info)
 {
     ogs_assert(list);
@@ -1280,6 +1284,9 @@ void ogs_sbi_nf_info_remove(ogs_list_t *list, ogs_sbi_nf_info_t *nf_info)
         break;
     case OpenAPI_nf_type_SCP:
         scp_info_free(&nf_info->scp);
+        break;
+    case OpenAPI_nf_type_SEPP:
+        sepp_info_free(&nf_info->sepp);
         break;
     default:
         ogs_fatal("Not implemented NF-type[%s]",
@@ -1364,6 +1371,12 @@ void ogs_sbi_nf_instance_build_default(ogs_sbi_nf_instance_t *nf_instance)
 
     nf_instance->time.heartbeat_interval =
             ogs_app()->time.nf_instance.heartbeat_interval;
+
+    if (ogs_app()->num_of_plmn_id) {
+        memcpy(nf_instance->plmn_id, ogs_app()->plmn_id,
+                sizeof(nf_instance->plmn_id));
+        nf_instance->num_of_plmn_id = ogs_app()->num_of_plmn_id;
+    }
 }
 
 ogs_sbi_nf_service_t *ogs_sbi_nf_service_build_default(

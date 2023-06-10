@@ -23,6 +23,7 @@
 #include "ogs-sbi.h"
 #include "ogs-app.h"
 
+#include "timer.h"
 #include "sepp-sm.h"
 
 #ifdef __cplusplus
@@ -35,8 +36,43 @@ extern int __sepp_log_domain;
 #define OGS_LOG_DOMAIN __sepp_log_domain
 
 typedef struct sepp_context_s {
-    ogs_list_t          assoc_list;
+    char *fqdn;
+
+    struct {
+        bool tls;
+        bool prins;
+    } security_capability;
+
+    bool target_apiroot_supported;
+
+    ogs_list_t peer_list;
+
+    ogs_list_t assoc_list;
 } sepp_context_t;
+
+typedef struct sepp_node_s sepp_node_t;
+
+typedef struct sepp_node_s {
+    ogs_lnode_t lnode;
+
+    char *fqdn;
+    OpenAPI_security_capability_e negotiated_security_scheme;
+    bool target_apiroot_supported;
+
+    ogs_plmn_id_t plmn_id[OGS_MAX_NUM_OF_PLMN];
+    int num_of_plmn_id;
+
+    bool target_plmn_id_presence;
+    ogs_plmn_id_t target_plmn_id;
+
+    uint64_t supported_features;
+
+    ogs_fsm_t sm;                           /* A state machine */
+    ogs_timer_t *t_establish_interval;      /* timer to retry
+                                               to establish peer node */
+
+    void *client;                           /* only used in CLIENT */
+} sepp_node_t;
 
 typedef struct sepp_assoc_s sepp_assoc_t;
 
@@ -60,6 +96,11 @@ void sepp_context_final(void);
 sepp_context_t *sepp_self(void);
 
 int sepp_context_parse_config(void);
+
+sepp_node_t *sepp_node_add(char *fqdn);
+void sepp_node_remove(sepp_node_t *sepp_node);
+void sepp_node_remove_all(void);
+sepp_node_t *sepp_node_find(char *fqdn);
 
 sepp_assoc_t *sepp_assoc_add(ogs_sbi_stream_t *stream);
 void sepp_assoc_remove(sepp_assoc_t *sess);

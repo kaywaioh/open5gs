@@ -125,6 +125,9 @@ typedef struct ogs_sbi_nf_instance_s {
     OpenAPI_nf_type_e nf_type;
     OpenAPI_nf_status_e nf_status;
 
+    ogs_plmn_id_t plmn_id[OGS_MAX_NUM_OF_PLMN];
+    int num_of_plmn_id;
+
     char *fqdn;
 
 #define OGS_SBI_MAX_NUM_OF_IP_ADDRESS 8
@@ -312,14 +315,6 @@ typedef struct ogs_sbi_scp_info_s {
 
 typedef struct ogs_sbi_sepp_info_s {
     ogs_port_t http, https;
-
-    int num_of_domain;
-    struct {
-        char *name;
-        char *fqdn;
-        ogs_port_t http, https;
-    } domain[OGS_MAX_NUM_OF_SCP_DOMAIN];
-
 } ogs_sbi_sepp_info_t;
 
 typedef struct ogs_sbi_amf_info_s {

@@ -39,6 +39,8 @@ example_conf = '''
     slice.yaml
     srsenb.yaml
     non3gpp.yaml
+    roaming-lbo-vplmn.yaml
+    roaming-lbo-hplmn.yaml
 '''.split()
 
 foreach file : example_conf

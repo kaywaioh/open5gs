@@ -23,6 +23,27 @@ logger:
     file: @localstatedir@/log/open5gs/nrf.log
 
 #
+#  o PLMN ID
+#  - 5G roaming requires PLMN in NRF configuration.
+#  - If not provided in NF, the PLMN of the NRF are assumed for the NF.
+#
+#  plmn:
+#    - id:
+#        mcc: 999
+#        mnc: 70
+#    - id:
+#        mcc: 001
+#        mnc: 01
+#    - id:
+#        mcc: 002
+#        mnc: 02
+#
+plmn:
+    - id:
+        mcc: 999
+        mnc: 70
+
+#
 #  o TLS enable/disable
 #  sbi:
 #    server|client:

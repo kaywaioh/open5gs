@@ -31,8 +31,8 @@ static void copy_request(
 
 int sepp_sbi_open(void)
 {
-    ogs_sbi_nf_instance_t *nf_instance = NULL, *nrf_instance = NULL;
-    ogs_sbi_client_t *nrf_client = NULL, *next_sepp = NULL;
+    ogs_sbi_nf_instance_t *nf_instance = NULL;
+    sepp_node_t *sepp_node = NULL;
 
     /* Initialize SELF NF instance */
     nf_instance = ogs_sbi_self()->nf_instance;
@@ -42,45 +42,14 @@ int sepp_sbi_open(void)
     /* Build NF instance information. It will be transmitted to NRF. */
     ogs_sbi_nf_instance_build_default(nf_instance);
 
-    /*
-     * If the SEPP is running in Model D,
-     * it can send NFRegister/NFStatusSubscribe messages to the NRF.
-     */
-    nrf_instance = ogs_sbi_self()->nrf_instance;
-    nrf_client = NF_INSTANCE_CLIENT(ogs_sbi_self()->nrf_instance);
+    /* Initialize NRF NF Instance */
+    nf_instance = ogs_sbi_self()->nrf_instance;
+    if (nf_instance)
+        ogs_sbi_nf_fsm_init(nf_instance);
 
-    if (nrf_client) {
-
-        /* Initialize NRF NF Instance */
-        if (nrf_instance)
-            ogs_sbi_nf_fsm_init(nrf_instance);
-    }
-
-    /* Check if Next-SEPP's client */
-#if 0
-    if (ogs_sbi_self()->discovery_config.delegated ==
-            OGS_SBI_DISCOVERY_DELEGATED_AUTO) {
-        next_sepp = NF_INSTANCE_CLIENT(ogs_sbi_self()->sepp_instance);
-    } else if (ogs_sbi_self()->discovery_config.delegated ==
-            OGS_SBI_DISCOVERY_DELEGATED_YES) {
-        next_sepp = NF_INSTANCE_CLIENT(ogs_sbi_self()->sepp_instance);
-        ogs_assert(next_sepp);
-    }
-#endif
-
-    /* If the SEPP has an NRF client and does not delegate to Next-SEPP */
-    if (nrf_client && !next_sepp) {
-
-        /* Setup Subscription-Data */
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_AMF, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_AUSF, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_BSF, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_NSSF, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_PCF, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_SMF, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_UDM, NULL);
-        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_UDR, NULL);
-    }
+    /* Initialize SEPP Peer List */
+    ogs_list_for_each(&sepp_self()->peer_list, sepp_node)
+        sepp_handshake_fsm_init(sepp_node, true);
 
     if (ogs_sbi_server_start_all(request_handler) != OGS_OK)
         return OGS_ERROR;
@@ -92,6 +61,101 @@ void sepp_sbi_close(void)
 {
     ogs_sbi_client_stop_all();
     ogs_sbi_server_stop_all();
+}
+
+bool sepp_n32c_handshake_send_security_capability_request(
+        sepp_node_t *sepp_node, bool none)
+{
+    bool rc;
+    ogs_sbi_request_t *request = NULL;
+    ogs_sbi_client_t *client = NULL;
+
+    ogs_assert(sepp_node);
+    client = sepp_node->client;
+    if (!client) {
+        ogs_error("No Client");
+        return false;
+    }
+
+    request = sepp_n32c_handshake_build_security_capability_request(
+            sepp_node, none);
+    if (!request) {
+        ogs_error("sepp_n32c_handshake_build_exchange_capability() failed");
+        return false;
+    }
+
+    rc = ogs_sbi_client_send_request(
+            client, ogs_sbi_client_handler, request, sepp_node);
+    ogs_expect(rc == true);
+
+    ogs_sbi_request_free(request);
+
+    return rc;
+}
+
+void sepp_n32c_handshake_send_security_capability_response(
+        sepp_node_t *sepp_node, ogs_sbi_stream_t *stream)
+{
+    ogs_sbi_message_t sendmsg;
+    ogs_sbi_response_t *response = NULL;
+
+    OpenAPI_sec_negotiate_rsp_data_t SecNegotiateRspData;
+
+    OpenAPI_list_t *PlmnIdList = NULL;
+    OpenAPI_plmn_id_t *PlmnId = NULL;
+
+    int i;
+    OpenAPI_lnode_t *node = NULL;
+
+    ogs_assert(sepp_node);
+    ogs_assert(stream);
+
+    memset(&SecNegotiateRspData, 0, sizeof(SecNegotiateRspData));
+    SecNegotiateRspData.sender = sepp_self()->fqdn;
+    SecNegotiateRspData.selected_sec_capability =
+        sepp_node->negotiated_security_scheme;
+
+    if (SecNegotiateRspData.selected_sec_capability !=
+            OpenAPI_security_capability_NONE) {
+        if (sepp_node->target_apiroot_supported == true) {
+            SecNegotiateRspData.is__3_gpp_sbi_target_api_root_supported = true;
+            SecNegotiateRspData._3_gpp_sbi_target_api_root_supported = 1;
+        }
+    }
+
+    PlmnIdList = OpenAPI_list_create();
+    ogs_assert(PlmnIdList);
+
+    for (i = 0; i < ogs_app()->num_of_plmn_id; i++) {
+        PlmnId = ogs_sbi_build_plmn_id(&ogs_app()->plmn_id[i]);
+        ogs_assert(PlmnId);
+        OpenAPI_list_add(PlmnIdList, PlmnId);
+    }
+
+    if (PlmnIdList->count)
+        SecNegotiateRspData.plmn_id_list = PlmnIdList;
+    else
+        OpenAPI_list_free(PlmnIdList);
+
+    SecNegotiateRspData.supported_features =
+        ogs_uint64_to_string(sepp_node->supported_features);
+    ogs_assert(SecNegotiateRspData.supported_features);
+
+    memset(&sendmsg, 0, sizeof(sendmsg));
+    sendmsg.SecNegotiateRspData = &SecNegotiateRspData;
+
+    response = ogs_sbi_build_response(&sendmsg, OGS_SBI_HTTP_STATUS_OK);
+    ogs_assert(response);
+    ogs_assert(true == ogs_sbi_server_send_response(stream, response));
+
+    OpenAPI_list_for_each(SecNegotiateRspData.plmn_id_list, node) {
+        PlmnId = node->data;
+        if (PlmnId)
+            ogs_sbi_free_plmn_id(PlmnId);
+    }
+    OpenAPI_list_free(SecNegotiateRspData.plmn_id_list);
+    if (SecNegotiateRspData.supported_features)
+        ogs_free(SecNegotiateRspData.supported_features);
 }
 
 static int request_handler(ogs_sbi_request_t *request, void *data)

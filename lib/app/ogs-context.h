@@ -72,6 +72,7 @@ typedef struct ogs_app_context_s {
         int no_nssf;
         int no_bsf;
         int no_udr;
+        int no_sepp;
         int no_scp;
         int no_nrf;
 
@@ -146,8 +147,8 @@ typedef struct ogs_app_context_s {
             struct {
                 ogs_time_t client_wait_duration;
                 ogs_time_t connection_deadline;
-                ogs_time_t nf_register_interval;
-                ogs_time_t nf_register_interval_in_exception;
+                ogs_time_t reconnect_interval;
+                ogs_time_t reconnect_interval_in_exception;
             } sbi;
 
             struct {
@@ -177,6 +178,9 @@ typedef struct ogs_app_context_s {
     struct metrics {
         uint64_t max_specs;
     } metrics;
+
+    ogs_plmn_id_t plmn_id[OGS_MAX_NUM_OF_PLMN];
+    int num_of_plmn_id;
 
     struct {
         struct {

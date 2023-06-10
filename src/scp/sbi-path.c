@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -70,6 +70,7 @@ int scp_sbi_open(void)
     if (nrf_client && !next_scp) {
 
         /* Setup Subscription-Data */
+        ogs_sbi_subscription_spec_add(OpenAPI_nf_type_SEPP, NULL);
         ogs_sbi_subscription_spec_add(OpenAPI_nf_type_AMF, NULL);
         ogs_sbi_subscription_spec_add(OpenAPI_nf_type_AUSF, NULL);
         ogs_sbi_subscription_spec_add(OpenAPI_nf_type_BSF, NULL);
