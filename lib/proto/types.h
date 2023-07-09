@@ -129,12 +129,19 @@ uint16_t ogs_plmn_id_mnc_len(ogs_plmn_id_t *plmn_id);
 void *ogs_plmn_id_build(ogs_plmn_id_t *plmn_id,
         uint16_t mcc, uint16_t mnc, uint16_t mnc_len);
 
-char *ogs_serving_network_name_from_plmn_id(ogs_plmn_id_t *plmn_id);
 char *ogs_plmn_id_mcc_string(ogs_plmn_id_t *plmn_id);
 char *ogs_plmn_id_mnc_string(ogs_plmn_id_t *plmn_id);
 
 #define OGS_PLMNIDSTRLEN    (sizeof(ogs_plmn_id_t)*2+1)
 char *ogs_plmn_id_to_string(ogs_plmn_id_t *plmn_id, char *buf);
+
+char *ogs_serving_network_name_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_home_network_domain_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_nrf_fqdn_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_nssf_fqdn_from_plmn_id(ogs_plmn_id_t *plmn_id);
+char *ogs_home_network_domain_from_fqdn(char *fqdn);
+uint16_t ogs_plmn_id_mnc_from_fqdn(char *fqdn);
+uint16_t ogs_plmn_id_mcc_from_fqdn(char *fqdn);
 
 /*************************
  * NAS PLMN_ID Structure */

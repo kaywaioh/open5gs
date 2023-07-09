@@ -95,15 +95,37 @@ int smf_sbi_discover_and_send(
         ogs_sbi_request_t *(*build)(smf_sess_t *sess, void *data),
         smf_sess_t *sess, ogs_sbi_stream_t *stream, int state, void *data)
 {
+    int r;
     smf_ue_t *smf_ue = NULL;
     ogs_sbi_xact_t *xact = NULL;
-    int r;
+    OpenAPI_nf_type_e target_nf_type = OpenAPI_nf_type_NULL;
 
     ogs_assert(service_type);
+    target_nf_type = ogs_sbi_service_type_to_nf_type(service_type);
+    ogs_assert(target_nf_type);
     ogs_assert(sess);
     smf_ue = sess->smf_ue;
     ogs_assert(smf_ue);
     ogs_assert(build);
+
+    if (target_nf_type == OpenAPI_nf_type_UDM &&
+        ogs_sbi_plmn_id_in_vplmn(&sess->home_plmn_id) == true) {
+        int i;
+
+        if (!discovery_option) {
+            discovery_option = ogs_sbi_discovery_option_new();
+            ogs_assert(discovery_option);
+        }
+
+        ogs_sbi_discovery_option_add_target_plmn_list(
+                discovery_option, &sess->home_plmn_id);
+
+        ogs_assert(ogs_app()->num_of_serving_plmn_id);
+        for (i = 0; i < ogs_app()->num_of_serving_plmn_id; i++) {
+            ogs_sbi_discovery_option_add_requester_plmn_list(
+                    discovery_option, &ogs_app()->serving_plmn_id[i]);
+        }
+    }
 
     xact = ogs_sbi_xact_add(
             &sess->sbi, service_type, discovery_option,

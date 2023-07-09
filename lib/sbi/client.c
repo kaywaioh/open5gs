@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -99,13 +99,15 @@ void ogs_sbi_client_final(void)
 }
 
 ogs_sbi_client_t *ogs_sbi_client_add(
-        OpenAPI_uri_scheme_e scheme, ogs_sockaddr_t *addr)
+        OpenAPI_uri_scheme_e scheme,
+        char *fqdn, uint16_t fqdn_port,
+        ogs_sockaddr_t *addr, ogs_sockaddr_t *addr6)
 {
     ogs_sbi_client_t *client = NULL;
     CURLM *multi = NULL;
 
     ogs_assert(scheme);
-    ogs_assert(addr);
+    ogs_assert(fqdn || addr || addr6);
 
     ogs_pool_alloc(&client_pool, &client);
     ogs_assert(client);
@@ -116,7 +118,13 @@ ogs_sbi_client_t *ogs_sbi_client_add(
     ogs_debug("ogs_sbi_client_add[%s]", OpenAPI_uri_scheme_ToString(scheme));
     OGS_OBJECT_REF(client);
 
-    ogs_assert(OGS_OK == ogs_copyaddrinfo(&client->node.addr, addr));
+    if (fqdn)
+        ogs_assert(client->fqdn = ogs_strdup(fqdn));
+    client->fqdn_port = fqdn_port;
+    if (addr)
+        ogs_assert(OGS_OK == ogs_copyaddrinfo(&client->addr, addr));
+    if (addr6)
+        ogs_assert(OGS_OK == ogs_copyaddrinfo(&client->addr6, addr6));
 
     client->t_curl = ogs_timer_add(
             ogs_app()->timer_mgr, multi_timer_expired, client);
@@ -146,15 +154,19 @@ ogs_sbi_client_t *ogs_sbi_client_add(
 
 void ogs_sbi_client_remove(ogs_sbi_client_t *client)
 {
-    ogs_sockaddr_t *addr = NULL;
     char buf[OGS_ADDRSTRLEN];
 
     ogs_assert(client);
 
-    addr = client->node.addr;
-    ogs_assert(addr);
-    ogs_debug("ogs_sbi_client_remove() [%s:%d]",
-                OGS_ADDR(addr, buf), OGS_PORT(addr));
+    ogs_debug("ogs_sbi_client_remove()");
+    if (client->fqdn)
+        ogs_debug("- fqdn [%s:%d]", client->fqdn, client->fqdn_port);
+    if (client->addr)
+        ogs_debug("- addr [%s:%d]",
+                OGS_ADDR(client->addr, buf), OGS_PORT(client->addr));
+    if (client->addr6)
+        ogs_debug("- addr6 [%s:%d]",
+                OGS_ADDR(client->addr6, buf), OGS_PORT(client->addr6));
 
     /* ogs_sbi_client_t is always created with reference context */
     if (OGS_OBJECT_IS_REF(client)) {
@@ -173,8 +185,12 @@ void ogs_sbi_client_remove(ogs_sbi_client_t *client)
     ogs_assert(client->multi);
     curl_multi_cleanup(client->multi);
 
-    ogs_assert(client->node.addr);
-    ogs_freeaddrinfo(client->node.addr);
+    if (client->fqdn)
+        ogs_free(client->fqdn);
+    if (client->addr)
+        ogs_freeaddrinfo(client->addr);
+    if (client->addr6)
+        ogs_freeaddrinfo(client->addr6);
 
     ogs_pool_free(&client_pool, client);
 }
@@ -188,17 +204,39 @@ void ogs_sbi_client_remove_all(void)
 }
 
 ogs_sbi_client_t *ogs_sbi_client_find(
-        OpenAPI_uri_scheme_e scheme, ogs_sockaddr_t *addr)
+        OpenAPI_uri_scheme_e scheme,
+        char *fqdn, uint16_t fqdn_port,
+        ogs_sockaddr_t *addr, ogs_sockaddr_t *addr6)
 {
     ogs_sbi_client_t *client = NULL;
 
     ogs_assert(scheme);
-    ogs_assert(addr);
 
     ogs_list_for_each(&ogs_sbi_self()->client_list, client) {
-        if (client->scheme == scheme &&
-            ogs_sockaddr_is_equal(client->node.addr, addr) == true)
-            break;
+        if (client->scheme != scheme)
+            continue;
+
+        if (fqdn) {
+            if (!client->fqdn)
+                continue;
+            if (strcmp(client->fqdn, fqdn) != 0 ||
+                client->fqdn_port != fqdn_port)
+                continue;
+        }
+        if (addr) {
+            if (!client->addr)
+                continue;
+            if (ogs_sockaddr_is_equal(client->addr, addr) == false)
+                continue;
+        }
+        if (addr6) {
+            if (!client->addr6)
+                continue;
+            if (ogs_sockaddr_is_equal(client->addr6, addr6) == false)
+                continue;
+        }
+
+        break;
     }
 
     return client;
@@ -664,7 +702,7 @@ bool ogs_sbi_client_send_request(
     return true;
 }
 
-bool ogs_sbi_client_send_via_scp(
+bool ogs_sbi_client_send_via_scp_or_sepp(
         ogs_sbi_client_t *client, ogs_sbi_client_cb_f client_cb,
         ogs_sbi_request_t *request, void *data)
 {
@@ -675,11 +713,13 @@ bool ogs_sbi_client_send_via_scp(
 
     if (request->h.uri) {
         /*
-         * In case of indirect communication using SCP,
-         * If the full URI is already defined, change full URI to SCP as below.
+         * In case of the communication using SCP or SEPP,
+         * If the full URI is already defined,
+         * change full URI to SCP or SEPP as below.
          *
          * OLD: http://127.0.0.5:7777/nnrf-nfm/v1/nf-status-notify
-         * NEW: https://scp.open5gs.org/nnrf-nfm/v1/nf-status-notify
+         * SCP: https://scp.open5gs.org/nnrf-nfm/v1/nf-status-notify
+         * SEPP: https://sepp.open5gs.org/nnrf-nfm/v1/nf-status-notify
          */
         char *apiroot = NULL;
         char *path = NULL;

@@ -1713,6 +1713,8 @@ void smf_sess_remove(smf_sess_t *sess)
 
     if (sess->session.name)
         ogs_free(sess->session.name);
+    if (sess->full_dnn)
+        ogs_free(sess->full_dnn);
 
     if (sess->session.ipv4_framed_routes) {
         for (i = 0; i < OGS_MAX_NUM_OF_FRAMED_ROUTES_IN_PDI; i++) {
@@ -1997,7 +1999,7 @@ smf_bearer_t *smf_qos_flow_add(smf_sess_t *sess)
     qos_flow->sess = sess;
 
     ogs_list_add(&sess->bearer_list, qos_flow);
-    smf_metrics_inst_by_5qi_add(&sess->plmn_id, &sess->s_nssai,
+    smf_metrics_inst_by_5qi_add(&sess->serving_plmn_id, &sess->s_nssai,
             sess->session.qos.index, SMF_METR_GAUGE_SM_QOSFLOWNBR, 1);
     smf_metrics_inst_global_inc(SMF_METR_GLOB_GAUGE_BEARERS_ACTIVE);
 

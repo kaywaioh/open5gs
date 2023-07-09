@@ -40,9 +40,14 @@ else
     ifconfig lo0 alias 127.0.1.10 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.1.11 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.1.12 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.1.13 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.1.14 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.1.15 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.2.10 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.2.11 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.2.12 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.2.14 netmask 255.255.255.255
+    ifconfig lo0 alias 127.0.2.15 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.3.2 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.3.3 netmask 255.255.255.255
     ifconfig lo0 alias 127.0.3.4 netmask 255.255.255.255

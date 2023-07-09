@@ -75,6 +75,76 @@ sepp_context_t *sepp_self(void)
 
 static int sepp_context_prepare(void)
 {
+    ogs_sbi_server_t *server = NULL;
+
+    ogs_sbi_nf_instance_t *nf_instance = NULL;
+    ogs_sbi_nf_info_t *nf_info = NULL;
+    ogs_sbi_sepp_info_t *sepp_info = NULL;
+    char *hostname = NULL;
+
+    /*********************************************************************
+     * SEPP FQDN Configuration
+     *********************************************************************/
+    hostname = NULL;
+    ogs_list_for_each(&ogs_sbi_self()->server_list, server) {
+        ogs_sockaddr_t *advertise = NULL;
+
+        advertise = server->advertise;
+        if (!advertise)
+            advertise = server->node.addr;
+        ogs_assert(advertise);
+
+        /* First FQDN is selected */
+        if (!hostname) {
+            hostname = ogs_gethostname(advertise);
+            if (hostname)
+                continue;
+        }
+    }
+
+    if (hostname) {
+        self.fqdn = ogs_strdup(hostname);
+        ogs_assert(self.fqdn);
+    }
+
+    /*********************************************************************
+     * SEPP Port Configuration
+     *********************************************************************/
+    nf_instance = ogs_sbi_self()->nf_instance;
+    ogs_assert(nf_instance);
+
+    nf_info = ogs_sbi_nf_info_add(
+            &nf_instance->nf_info_list, OpenAPI_nf_type_SEPP);
+    if (!nf_info) {
+        ogs_error("ogs_sbi_nf_info_add() failed");
+        return OGS_ERROR;
+    }
+
+    sepp_info = &nf_info->sepp;
+
+    ogs_list_for_each(&ogs_sbi_self()->server_list, server) {
+        ogs_sockaddr_t *advertise = NULL;
+
+        advertise = server->advertise;
+        if (!advertise)
+            advertise = server->node.addr;
+        ogs_assert(advertise);
+
+        if (ogs_sbi_server_default_scheme() == OpenAPI_uri_scheme_https) {
+            sepp_info->https.presence = true;
+            sepp_info->https.port = OGS_PORT(advertise);
+        } else if (ogs_sbi_server_default_scheme() == OpenAPI_uri_scheme_http) {
+            sepp_info->http.presence = true;
+            sepp_info->http.port = OGS_PORT(advertise);
+        } else {
+            ogs_error("Unknown scheme[%d]", ogs_sbi_server_default_scheme());
+            ogs_assert_if_reached();
+        }
+    }
+
+    /*********************************************************************
+     * Default Configuration
+     *********************************************************************/
     self.security_capability.tls = true;
     self.target_apiroot_supported = true;
 
@@ -83,10 +153,6 @@ static int sepp_context_prepare(void)
 
 static int sepp_context_validation(void)
 {
-    if (!self.fqdn) {
-        ogs_error("No FQDN in '%s'", ogs_app()->file);
-        return OGS_ERROR;
-    }
     if (sepp_self()->security_capability.tls == false &&
         sepp_self()->security_capability.prins == false) {
         ogs_error("No Security Capability [%d:%d] in '%s'",
@@ -126,12 +192,6 @@ int sepp_context_parse_config(void)
                     /* handle config in sbi library */
                 } else if (!strcmp(sepp_key, "discovery")) {
                     /* handle config in sbi library */
-                } else if (!strcmp(sepp_key, "fqdn")) {
-                    const char *v = ogs_yaml_iter_value(&sepp_iter);
-                    if (v) {
-                        self.fqdn = ogs_strdup(v);
-                        ogs_assert(self.fqdn);
-                    }
                 } else if (!strcmp(sepp_key, "peer")) {
                     ogs_yaml_iter_t peer_array, peer_iter;
                     ogs_yaml_iter_recurse(&sepp_iter, &peer_array);
@@ -139,7 +199,6 @@ int sepp_context_parse_config(void)
                         sepp_node_t *sepp_node = NULL;
                         ogs_sbi_client_t *client = NULL;
                         const char *uri = NULL;
-                        const char *fqdn = NULL;
                         const char *mnc = NULL, *mcc = NULL;
 
                         if (ogs_yaml_iter_type(&peer_array) ==
@@ -161,11 +220,9 @@ int sepp_context_parse_config(void)
                             const char *peer_key =
                                 ogs_yaml_iter_key(&peer_iter);
                             ogs_assert(peer_key);
-                            if (!strcmp(peer_key, "fqdn")) {
-                                fqdn = ogs_yaml_iter_value(&peer_iter);
-                            } else if (!strcmp(peer_key, "uri")) {
+                            if (!strcmp(peer_key, "uri")) {
                                 uri = ogs_yaml_iter_value(&peer_iter);
-                            } else if (!strcmp(peer_key, "plmn_id")) {
+                            } else if (!strcmp(peer_key, "target_plmn_id")) {
                                 ogs_yaml_iter_t plmn_id_iter;
 
                                 ogs_yaml_iter_recurse(&peer_iter,
@@ -187,37 +244,52 @@ int sepp_context_parse_config(void)
                                 ogs_warn("unknown key `%s`", peer_key);
                         }
 
-                        if (fqdn && uri) {
+                        if (uri) {
                             bool rc;
                             OpenAPI_uri_scheme_e scheme =
                                 OpenAPI_uri_scheme_NULL;
-                            ogs_sockaddr_t *addr = NULL;
+                            char *fqdn = NULL;
+                            uint16_t fqdn_port = 0;
+                            ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
                             rc = ogs_sbi_getaddr_from_uri(
-                                    &scheme, &addr, (char *)uri);
-                            if (rc == false ||
-                                    scheme == OpenAPI_uri_scheme_NULL) {
-                                ogs_error("Invalid URI[%s] with FQDN[%s]",
-                                        uri, fqdn);
-                            } else {
-                                sepp_node = sepp_node_add((char *)fqdn);
-                                ogs_assert(sepp_node);
+                                    &scheme, &fqdn, &fqdn_port, &addr, &addr6,
+                                    (char *)uri);
+                            if (rc == false) {
+                                if (!scheme)
+                                    ogs_error("Invalid Scheme in URI[%s]", uri);
+                                else
+                                    ogs_error("Invalid URI[%s]", uri);
 
-                                client = ogs_sbi_client_add(scheme, addr);
-                                ogs_assert(client);
-                                OGS_SBI_SETUP_CLIENT(sepp_node, client);
-
-                                if (mcc && mnc) {
-                                    ogs_plmn_id_build(
-                                        &sepp_node->target_plmn_id,
-                                        atoi(mcc), atoi(mnc), strlen(mnc));
-                                    sepp_node->target_plmn_id_presence = true;
-                                }
-
-                                ogs_freeaddrinfo(addr);
+                                return OGS_ERROR;
                             }
+                            if (!fqdn) {
+                                ogs_error("No FQDN in URI[%s]", uri);
+                                ogs_freeaddrinfo(addr);
+                                ogs_freeaddrinfo(addr6);
+                                return OGS_ERROR;
+                            }
+
+                            sepp_node = sepp_node_add((char *)fqdn);
+                            ogs_assert(sepp_node);
+
+                            client = ogs_sbi_client_add(
+                                    scheme, fqdn, fqdn_port, NULL, NULL);
+                            ogs_assert(client);
+                            OGS_SBI_SETUP_CLIENT(sepp_node, client);
+
+                            if (mcc && mnc) {
+                                ogs_plmn_id_build(
+                                    &sepp_node->target_plmn_id,
+                                    atoi(mcc), atoi(mnc), strlen(mnc));
+                                sepp_node->target_plmn_id_presence = true;
+                            }
+
+                            ogs_free(fqdn);
+                            ogs_freeaddrinfo(addr);
+                            ogs_freeaddrinfo(addr6);
                         } else {
-                            ogs_error("Invalid Mandatory [FQDN:%s,URI:%s]",
-                                    fqdn ? fqdn : "NULL", uri ? uri : "NULL");
+                            ogs_error("Invalid Mandatory [URI:%s]",
+                                        uri ? uri : "NULL");
                         }
                     } while (ogs_yaml_iter_type(&peer_array) ==
                             YAML_SEQUENCE_NODE);
@@ -232,7 +304,7 @@ int sepp_context_parse_config(void)
                     nf_instance = ogs_sbi_self()->nf_instance;
                     ogs_assert(nf_instance);
 
-                    nf_info = ogs_sbi_nf_info_add(
+                    nf_info = ogs_sbi_nf_info_find(
                                 &nf_instance->nf_info_list,
                                     OpenAPI_nf_type_SEPP);
                     ogs_assert(nf_info);
@@ -286,6 +358,8 @@ sepp_node_t *sepp_node_add(char *fqdn)
 {
     sepp_node_t *sepp_node = NULL;
 
+    ogs_assert(fqdn);
+
     ogs_pool_alloc(&sepp_node_pool, &sepp_node);
     if (!sepp_node) {
         ogs_error("Maximum number of nodeiation[%d] reached",
@@ -325,7 +399,7 @@ void sepp_node_remove_all(void)
         sepp_node_remove(sepp_node);
 }
 
-sepp_node_t *sepp_node_find(char *fqdn)
+sepp_node_t *sepp_node_find_by_fqdn(char *fqdn)
 {
     sepp_node_t *sepp_node = NULL;
 
@@ -335,6 +409,27 @@ sepp_node_t *sepp_node_find(char *fqdn)
         ogs_assert(sepp_node->fqdn);
         if (strcmp(sepp_node->fqdn, fqdn) == 0) {
             return sepp_node;
+        }
+    }
+
+    return NULL;
+}
+
+sepp_node_t *sepp_node_find_by_plmn_id(uint16_t mcc, uint16_t mnc)
+{
+    sepp_node_t *sepp_node = NULL;
+
+    ogs_assert(mcc);
+    ogs_assert(mnc);
+
+    ogs_list_for_each(&self.peer_list, sepp_node) {
+        int i;
+        ogs_assert(sepp_node->fqdn);
+        for (i = 0; i < sepp_node->num_of_plmn_id; i++) {
+            if (mcc == ogs_plmn_id_mcc(&sepp_node->plmn_id[i]) &&
+                mnc == ogs_plmn_id_mnc(&sepp_node->plmn_id[i])) {
+                return sepp_node;
+            }
         }
     }
 
@@ -382,9 +477,4 @@ void sepp_assoc_remove_all(void)
 
     ogs_list_for_each_safe(&self.assoc_list, next_assoc, assoc)
         sepp_assoc_remove(assoc);
-}
-
-sepp_assoc_t *sepp_assoc_find(uint32_t index)
-{
-    return ogs_pool_find(&sepp_assoc_pool, index);
 }

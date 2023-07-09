@@ -71,6 +71,7 @@ typedef struct ogs_sbi_context_s {
     ogs_sbi_nf_instance_t *nf_instance;     /* SELF NF Instance */
     ogs_sbi_nf_instance_t *nrf_instance;    /* NRF Instance */
     ogs_sbi_nf_instance_t *scp_instance;    /* SCP Instance */
+    ogs_sbi_nf_instance_t *sepp_instance;   /* SEPP Instance */
 
     const char *content_encoding;
 
@@ -194,6 +195,7 @@ typedef struct ogs_sbi_xact_s {
 
     ogs_sbi_stream_t *assoc_stream;
     int state;
+    char *target_apiroot;
 
     ogs_sbi_object_t *sbi_object;
 } ogs_sbi_xact_t;
@@ -446,9 +448,22 @@ bool ogs_sbi_discovery_param_is_matched(
         OpenAPI_nf_type_e requester_nf_type,
         ogs_sbi_discovery_option_t *discovery_option);
 
+bool ogs_sbi_discovery_param_serving_plmn_list_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance);
+
 bool ogs_sbi_discovery_option_is_matched(
         ogs_sbi_nf_instance_t *nf_instance,
         OpenAPI_nf_type_e requester_nf_type,
+        ogs_sbi_discovery_option_t *discovery_option);
+bool ogs_sbi_discovery_option_service_names_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance,
+        OpenAPI_nf_type_e requester_nf_type,
+        ogs_sbi_discovery_option_t *discovery_option);
+bool ogs_sbi_discovery_option_requester_plmn_list_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance,
+        ogs_sbi_discovery_option_t *discovery_option);
+bool ogs_sbi_discovery_option_target_plmn_list_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance,
         ogs_sbi_discovery_option_t *discovery_option);
 
 void ogs_sbi_object_free(ogs_sbi_object_t *sbi_object);
@@ -477,6 +492,10 @@ void ogs_sbi_subscription_data_remove_all_by_nf_instance_id(
         char *nf_instance_id);
 void ogs_sbi_subscription_data_remove_all(void);
 ogs_sbi_subscription_data_t *ogs_sbi_subscription_data_find(char *id);
+
+bool ogs_sbi_supi_in_vplmn(char *supi);
+bool ogs_sbi_plmn_id_in_vplmn(ogs_plmn_id_t *plmn_id);
+bool ogs_sbi_fqdn_in_vplmn(char *fqdn);
 
 #ifdef __cplusplus
 }

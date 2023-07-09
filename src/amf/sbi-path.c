@@ -96,10 +96,33 @@ int amf_ue_sbi_discover_and_send(
     int r;
     int rv;
     ogs_sbi_xact_t *xact = NULL;
+    OpenAPI_nf_type_e target_nf_type = OpenAPI_nf_type_NULL;
 
     ogs_assert(service_type);
+    target_nf_type = ogs_sbi_service_type_to_nf_type(service_type);
+    ogs_assert(target_nf_type);
     ogs_assert(amf_ue);
     ogs_assert(build);
+
+    if ((target_nf_type == OpenAPI_nf_type_AUSF ||
+        target_nf_type == OpenAPI_nf_type_UDM) &&
+        ogs_sbi_plmn_id_in_vplmn(&amf_ue->home_plmn_id) == true) {
+        int i;
+
+        if (!discovery_option) {
+            discovery_option = ogs_sbi_discovery_option_new();
+            ogs_assert(discovery_option);
+        }
+
+        ogs_sbi_discovery_option_add_target_plmn_list(
+                discovery_option, &amf_ue->home_plmn_id);
+
+        ogs_assert(ogs_app()->num_of_serving_plmn_id);
+        for (i = 0; i < ogs_app()->num_of_serving_plmn_id; i++) {
+            ogs_sbi_discovery_option_add_requester_plmn_list(
+                    discovery_option, &ogs_app()->serving_plmn_id[i]);
+        }
+    }
 
     xact = ogs_sbi_xact_add(
             &amf_ue->sbi, service_type, discovery_option,

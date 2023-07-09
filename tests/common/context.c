@@ -146,6 +146,15 @@ static int test_context_validation(void)
             OGS_PLMN_ID_LEN);
     test_self()->nr_cgi.cell_id = 0x40001;
 
+    if (ogs_plmn_id_mcc(&ogs_app()->serving_plmn_id) == 0) {
+        ogs_error("No PLMN-ID(MCC)");
+        return OGS_ERROR;
+    }
+    if (ogs_plmn_id_mnc(&ogs_app()->serving_plmn_id) == 0) {
+        ogs_error("No PLMN-ID(MNC)");
+        return OGS_ERROR;
+    }
+
     return OGS_OK;
 }
 
@@ -1081,12 +1090,10 @@ test_ue_t *test_ue_add_by_suci(
     memcpy(&test_ue->nr_tai, &test_self()->nr_tai, sizeof(ogs_5gs_tai_t));
     memcpy(&test_ue->nr_cgi.plmn_id, &test_ue->nr_tai.plmn_id, OGS_PLMN_ID_LEN);
 
-    if (test_self()->nr_tai.tac.v)
-        ogs_nas_from_plmn_id(
-            &mobile_identity_suci->nas_plmn_id, &test_ue->nr_tai.plmn_id);
-    else
-        ogs_nas_from_plmn_id(
-            &mobile_identity_suci->nas_plmn_id, &test_ue->e_tai.plmn_id);
+    ogs_assert(ogs_plmn_id_mcc(&ogs_app()->serving_plmn_id));
+    ogs_assert(ogs_plmn_id_mnc(&ogs_app()->serving_plmn_id));
+    ogs_nas_from_plmn_id(&mobile_identity_suci->nas_plmn_id,
+            &ogs_app()->serving_plmn_id);
 
     for (i = 0; i < test_self()->num_of_plmn_support; i++) {
         for (j = 0; j < test_self()->plmn_support[i].num_of_s_nssai; j++) {

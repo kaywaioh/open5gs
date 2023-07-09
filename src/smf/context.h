@@ -282,8 +282,11 @@ typedef struct smf_sess_s {
 
     OpenAPI_up_cnx_state_e up_cnx_state;
 
-    /* PLMN ID & NID */
-    ogs_plmn_id_t   plmn_id;
+    /* Serving PLMN ID */
+    ogs_plmn_id_t   serving_plmn_id;
+
+    /* Home PLMN ID */
+    ogs_plmn_id_t   home_plmn_id;;
 
     /* LTE Location */
     ogs_eps_tai_t   e_tai;
@@ -314,6 +317,9 @@ typedef struct smf_sess_s {
     ogs_session_t session;
     uint8_t ue_session_type;
     uint8_t ue_ssc_mode;
+
+    /* DNN */
+    char *full_dnn;
 
     ogs_pfcp_ue_ip_t *ipv4;
     ogs_pfcp_ue_ip_t *ipv6;

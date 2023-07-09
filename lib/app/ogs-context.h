@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 by Sukchan Lee <acetcom@gmail.com>
+ * Copyright (C) 2019-2023 by Sukchan Lee <acetcom@gmail.com>
  *
  * This file is part of Open5GS.
  *
@@ -179,8 +179,8 @@ typedef struct ogs_app_context_s {
         uint64_t max_specs;
     } metrics;
 
-    ogs_plmn_id_t plmn_id[OGS_MAX_NUM_OF_PLMN];
-    int num_of_plmn_id;
+    ogs_plmn_id_t serving_plmn_id[OGS_MAX_NUM_OF_PLMN];
+    int num_of_serving_plmn_id;
 
     struct {
         struct {
@@ -198,7 +198,7 @@ int ogs_app_context_init(void);
 void ogs_app_context_final(void);
 ogs_app_context_t *ogs_app(void);
 
-int ogs_app_context_parse_config(void);
+int ogs_app_context_parse_config(const char *local);
 
 #ifdef __cplusplus
 }

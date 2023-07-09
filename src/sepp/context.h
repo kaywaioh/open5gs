@@ -77,7 +77,7 @@ typedef struct sepp_node_s {
 typedef struct sepp_assoc_s sepp_assoc_t;
 
 typedef struct sepp_assoc_s {
-    ogs_sbi_object_t sbi;
+    ogs_lnode_t lnode;
 
     ogs_sbi_stream_t *stream;
 
@@ -100,13 +100,12 @@ int sepp_context_parse_config(void);
 sepp_node_t *sepp_node_add(char *fqdn);
 void sepp_node_remove(sepp_node_t *sepp_node);
 void sepp_node_remove_all(void);
-sepp_node_t *sepp_node_find(char *fqdn);
+sepp_node_t *sepp_node_find_by_fqdn(char *fqdn);
+sepp_node_t *sepp_node_find_by_plmn_id(uint16_t mcc, uint16_t mnc);
 
 sepp_assoc_t *sepp_assoc_add(ogs_sbi_stream_t *stream);
-void sepp_assoc_remove(sepp_assoc_t *sess);
+void sepp_assoc_remove(sepp_assoc_t *assoc);
 void sepp_assoc_remove_all(void);
-
-sepp_assoc_t *sepp_assoc_find(uint32_t index);
 
 #ifdef __cplusplus
 }

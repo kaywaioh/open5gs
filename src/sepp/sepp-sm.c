@@ -124,7 +124,7 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                 CASE(OGS_SBI_HTTP_METHOD_POST)
                     if (message.SecNegotiateReqData &&
                         message.SecNegotiateReqData->sender) {
-                        sepp_node = sepp_node_find(
+                        sepp_node = sepp_node_find_by_fqdn(
                                 message.SecNegotiateReqData->sender);
                         if (!sepp_node) {
                             sepp_node = sepp_node_add(

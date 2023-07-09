@@ -23,27 +23,6 @@ logger:
     file: @localstatedir@/log/open5gs/nrf.log
 
 #
-#  o PLMN ID
-#  - 5G roaming requires PLMN in NRF configuration.
-#  - If not provided in NF, the PLMN of the NRF are assumed for the NF.
-#
-#  plmn:
-#    - id:
-#        mcc: 999
-#        mnc: 70
-#    - id:
-#        mcc: 001
-#        mnc: 01
-#    - id:
-#        mcc: 002
-#        mnc: 02
-#
-plmn:
-    - id:
-        mcc: 999
-        mnc: 70
-
-#
 #  o TLS enable/disable
 #  sbi:
 #    server|client:
@@ -92,6 +71,35 @@ sbi:
       key: @sysconfdir@/open5gs/tls/nrf.key
       cert: @sysconfdir@/open5gs/tls/nrf.crt
 
+#
+#  <Serving PLMN ID>
+#  o 5G roaming requires PLMN in NRF configuration.
+#  o If not provided in NF, the PLMN of the NRF are assumed for the NF.
+#
+#  nrf:
+#    serving:
+#      - plmn_id:
+#          mcc: 999
+#          mnc: 70
+#      - plmn_id:
+#          mcc: 001
+#          mnc: 01
+#      - plmn_id:
+#          mcc: 002
+#          mnc: 02
+#
+#  <FQDN>
+#
+#  o 5G roaming requires FQDN
+#  nrf:
+#    fqdn: nrf.5gc.mnc070.mcc999.3gppnetwork.org
+#
+#  o You only need to set the hostname(nrf) and
+#    the FQDN(nrf.5gc.mnc070.mcc999.3gppnetwork.org) is automatically
+#    configured using the PLMN-ID.
+#  nrf:
+#    hostname: nrf
+#
 #
 #  <SBI Server>
 #
@@ -210,81 +218,15 @@ sbi:
 #      - nnrf-disc
 #
 nrf:
+    serving:
+      - plmn_id:
+          mcc: 999
+          mnc: 70
     sbi:
       - addr:
         - 127.0.0.10
         - ::1
         port: 7777
-
-#
-#  <SBI Client>>
-#
-#  o SBI Client(http://127.0.1.10:7777)
-#  sbi:
-#    client:
-#      no_tls: true
-#  scp:
-#    sbi:
-#      addr: 127.0.1.10
-#      port: 7777
-#
-#  o SBI Client(https://127.0.1.10:443, https://[::1]:443) without verification
-#  sbi:
-#    client:
-#      no_verify: true
-#      key: /etc/open5gs/tls/amf.key
-#      cert: /etc/open5gs/tls/amf.crt
-#  scp:
-#    sbi:
-#      - addr: 127.0.1.10
-#      - addr: ::1
-#
-#  o SBI Client(https://scp.open5gs.org:443)
-#    Use the specified certificate while verifying the server
-#
-#  sbi:
-#    client:
-#      cacert: /etc/open5gs/tls/ca.crt
-#      key: /etc/open5gs/tls/amf.key
-#      cert: /etc/open5gs/tls/amf.crt
-#  scp:
-#    sbi:
-#      - name: scp.open5gs.org
-#
-#  o SBI Client(http://[fd69:f21d:873c:fb::1]:80)
-#    If prefer_ipv4 is true, http://127.0.1.10:80 is selected.
-#
-#  sbi:
-#    client:
-#      no_tls: true
-#  scp:
-#    sbi:
-#      addr:
-#        - 127.0.1.10
-#        - fd69:f21d:873c:fb::1
-#
-#  o SBI Option (Default)
-#    - tcp_nodelay : true
-#    - so_linger.l_onoff : false
-#
-#  sbi:
-#    client:
-#      no_tls: true
-#  scp:
-#    sbi:
-#      addr: 127.0.1.10
-#      option:
-#        tcp_nodelay: false
-#        so_linger:
-#          l_onoff: true
-#          l_linger: 10
-#
-#
-scp:
-    sbi:
-      - addr: 127.0.1.10
-        port: 7777
-
 
 #
 #  o Disable use of IPv4 addresses (only IPv6)

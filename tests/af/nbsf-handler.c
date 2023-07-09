@@ -75,12 +75,20 @@ void af_nbsf_management_handle_pcf_binding(
             if (IpEndPoint->ipv4_address) {
                 rv = ogs_getaddrinfo(&addr, AF_UNSPEC,
                         IpEndPoint->ipv4_address, port, 0);
-                if (rv != OGS_OK) continue;
+                if (rv != OGS_OK) {
+                    ogs_error("ogs_getaddrinfo[%s] failed",
+                                IpEndPoint->ipv4_address);
+                    continue;
+                }
             }
             if (IpEndPoint->ipv6_address) {
                 rv = ogs_getaddrinfo(&addr6, AF_UNSPEC,
                         IpEndPoint->ipv6_address, port, 0);
-                if (rv != OGS_OK) continue;
+                if (rv != OGS_OK) {
+                    ogs_error("ogs_getaddrinfo[%s] failed",
+                                IpEndPoint->ipv6_address);
+                    continue;
+                }
             }
 
             if (addr || addr6) {

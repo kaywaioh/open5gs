@@ -101,22 +101,15 @@ int nssf_context_parse_config(void)
                 } else if (!strcmp(nssf_key, "discovery")) {
                     /* handle config in sbi library */
                 } else if (!strcmp(nssf_key, "nsi")) {
-                    ogs_list_t list, list6;
-                    ogs_socknode_t *node = NULL, *node6 = NULL;
-
                     ogs_yaml_iter_t nsi_array, nsi_iter;
                     ogs_yaml_iter_recurse(&nssf_iter, &nsi_array);
                     do {
+                        ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
                         int family = AF_UNSPEC;
                         int i, num = 0;
                         const char *hostname[OGS_MAX_NUM_OF_HOSTNAME];
                         uint16_t port = ogs_sbi_server_default_port();
-                        const char *dev = NULL;
-                        ogs_sockaddr_t *addr = NULL;
                         const char *sst = NULL, *sd = NULL;
-
-                        ogs_sockopt_t option;
-                        bool is_option = false;
 
                         if (ogs_yaml_iter_type(&nsi_array) ==
                                 YAML_MAPPING_NODE) {
@@ -175,13 +168,6 @@ int nssf_context_parse_config(void)
                                 if (v) {
                                     port = atoi(v);
                                 }
-                            } else if (!strcmp(nsi_key, "dev")) {
-                                dev = ogs_yaml_iter_value(&nsi_iter);
-                            } else if (!strcmp(nsi_key, "option")) {
-                                rv = ogs_app_config_parse_sockopt(
-                                        &nsi_iter, &option);
-                                if (rv != OGS_OK) return rv;
-                                is_option = true;
                             } else if (!strcmp(nsi_key, "s_nssai")) {
                                 ogs_yaml_iter_t s_nssai_iter;
                                 ogs_yaml_iter_recurse(&nsi_iter, &s_nssai_iter);
@@ -211,49 +197,20 @@ int nssf_context_parse_config(void)
                             ogs_assert(rv == OGS_OK);
                         }
 
-                        ogs_list_init(&list);
-                        ogs_list_init(&list6);
+                        ogs_filter_ip_version(&addr,
+                                ogs_app()->parameter.no_ipv4,
+                                ogs_app()->parameter.no_ipv6,
+                                ogs_app()->parameter.prefer_ipv4);
 
                         if (addr) {
-                            if (ogs_app()->parameter.no_ipv4 == 0)
-                                ogs_socknode_add(
-                                    &list, AF_INET, addr,
-                                    is_option ? &option : NULL);
-                            if (ogs_app()->parameter.no_ipv6 == 0)
-                                ogs_socknode_add(
-                                    &list6, AF_INET6, addr,
-                                    is_option ? &option : NULL);
-                            ogs_freeaddrinfo(addr);
-                        }
-
-                        if (dev) {
-                            rv = ogs_socknode_probe(
-                                ogs_app()->parameter.no_ipv4 ? NULL : &list,
-                                ogs_app()->parameter.no_ipv6 ? NULL : &list6,
-                                dev, port,
-                                is_option ? &option : NULL);
-                            ogs_assert(rv == OGS_OK);
-                        }
-
-                        node = ogs_list_first(&list);
-                        if (node) {
-                            ogs_assert(sst);
-
-                            nssf_nsi_t *nsi = nssf_nsi_add(node->addr,
-                                    atoi(sst), ogs_s_nssai_sd_from_string(sd));
-                            ogs_assert(nsi);
-                        }
-                        node6 = ogs_list_first(&list6);
-                        if (node6) {
-                            ogs_assert(sst);
-
-                            nssf_nsi_t *nsi = nssf_nsi_add(node6->addr,
+                            nssf_nsi_t *nsi = nssf_nsi_add(addr,
                                     atoi(sst), ogs_s_nssai_sd_from_string(sd));
                             ogs_assert(nsi);
                         }
 
-                        ogs_socknode_remove_all(&list);
-                        ogs_socknode_remove_all(&list6);
+                        ogs_freeaddrinfo(addr);
+                        ogs_freeaddrinfo(addr6);
+
                     } while (ogs_yaml_iter_type(&nsi_array) ==
                             YAML_SEQUENCE_NODE);
                 } else
@@ -335,6 +292,7 @@ nssf_nsi_t *nssf_nsi_find_by_s_nssai(ogs_s_nssai_t *s_nssai)
 char *nssf_nsi_nrf_uri(nssf_nsi_t *nsi)
 {
     ogs_sbi_header_t h;
+    OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
 
     ogs_assert(nsi);
 
@@ -344,7 +302,12 @@ char *nssf_nsi_nrf_uri(nssf_nsi_t *nsi)
     h.api.version = (char *)OGS_SBI_API_V1;
     h.resource.component[0] = (char *)OGS_SBI_RESOURCE_NAME_NF_INSTANCES;
 
-    return ogs_uridup(ogs_app()->sbi.server.no_tls == false, nsi->addr, &h);
+    if (ogs_app()->sbi.server.no_tls == false)
+        scheme = OpenAPI_uri_scheme_https;
+    else
+        scheme = OpenAPI_uri_scheme_http;
+
+    return ogs_sbi_sockaddr_uri(scheme, nsi->addr, &h);
 }
 
 int get_nsi_load(void)

@@ -1238,7 +1238,7 @@ void smf_gsm_state_wait_pfcp_deletion(ogs_fsm_t *s, smf_event_t *e)
 
     switch (e->h.id) {
     case OGS_FSM_ENTRY_SIG:
-        /* Since `pfcp_xact->epc` is not avaiable,
+        /* Since `pfcp_xact->epc` is not available,
          * we'll use `sess->epc` */
         if (sess->epc) {
             /* EPC */
@@ -1661,7 +1661,7 @@ void smf_gsm_state_session_will_release(ogs_fsm_t *s, smf_event_t *e)
 
     switch (e->h.id) {
     case OGS_FSM_ENTRY_SIG:
-        smf_metrics_inst_by_slice_add(&sess->plmn_id, &sess->s_nssai,
+        smf_metrics_inst_by_slice_add(&sess->serving_plmn_id, &sess->s_nssai,
                 SMF_METR_GAUGE_SM_SESSIONNBR, -1);
         SMF_SESS_CLEAR(sess);
         break;
@@ -1693,7 +1693,7 @@ void smf_gsm_state_exception(ogs_fsm_t *s, smf_event_t *e)
     switch (e->h.id) {
     case OGS_FSM_ENTRY_SIG:
         ogs_error("[%s:%d] State machine exception", smf_ue->supi, sess->psi);
-        smf_metrics_inst_by_slice_add(&sess->plmn_id, &sess->s_nssai,
+        smf_metrics_inst_by_slice_add(&sess->serving_plmn_id, &sess->s_nssai,
                 SMF_METR_GAUGE_SM_SESSIONNBR, -1);
         SMF_SESS_CLEAR(sess);
         break;

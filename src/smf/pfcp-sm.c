@@ -475,7 +475,7 @@ static void reselect_upf(ogs_pfcp_node_t *node)
     }
 
     if (iter == NULL) {
-        ogs_error("No UPF avaiable");
+        ogs_error("No UPF available");
         return;
     }
 

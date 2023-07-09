@@ -403,6 +403,36 @@ ogs_sbi_request_t *ogs_sbi_build_request(ogs_sbi_message_t *message)
                             discovery_option->service_names[0]);
             }
         }
+        if (discovery_option->num_of_target_plmn_list) {
+            char *v = ogs_sbi_discovery_option_build_plmn_list(
+                    discovery_option->target_plmn_list,
+                    discovery_option->num_of_target_plmn_list);
+            if (v) {
+                ogs_sbi_header_set(request->http.params,
+                        OGS_SBI_PARAM_TARGET_PLMN_LIST, v);
+                ogs_free(v);
+            } else {
+                ogs_warn("invalid target-plmn-list failed[%d:%06x]",
+                            discovery_option->num_of_target_plmn_list,
+                            ogs_plmn_id_hexdump(
+                                &discovery_option->target_plmn_list[0]));
+            }
+        }
+        if (discovery_option->num_of_requester_plmn_list) {
+            char *v = ogs_sbi_discovery_option_build_plmn_list(
+                    discovery_option->requester_plmn_list,
+                    discovery_option->num_of_requester_plmn_list);
+            if (v) {
+                ogs_sbi_header_set(request->http.params,
+                        OGS_SBI_PARAM_REQUESTER_PLMN_LIST, v);
+                ogs_free(v);
+            } else {
+                ogs_warn("invalid target-plmn-list failed[%d:%06x]",
+                            discovery_option->num_of_requester_plmn_list,
+                            ogs_plmn_id_hexdump(
+                                &discovery_option->requester_plmn_list[0]));
+            }
+        }
         if (discovery_option->requester_features) {
             char *v = ogs_uint64_to_string(
                     discovery_option->requester_features);
@@ -466,9 +496,9 @@ ogs_sbi_request_t *ogs_sbi_build_request(ogs_sbi_message_t *message)
             if (plmn_id.mnc) ogs_free(plmn_id.mnc);
             if (plmn_id.mcc) ogs_free(plmn_id.mcc);
 
-            v = cJSON_Print(item);
+            v = cJSON_PrintUnformatted(item);
             if (!v) {
-                ogs_error("cJSON_Print() failed");
+                ogs_error("cJSON_PrintUnformatted() failed");
                 ogs_sbi_request_free(request);
                 return NULL;
             }
@@ -535,9 +565,9 @@ ogs_sbi_request_t *ogs_sbi_build_request(ogs_sbi_message_t *message)
             return NULL;
         }
 
-        v = cJSON_Print(item);
+        v = cJSON_PrintUnformatted(item);
         if (!v) {
-            ogs_error("cJSON_Print() failed");
+            ogs_error("cJSON_PrintUnformatted() failed");
             ogs_sbi_request_free(request);
             return NULL;
         }
@@ -708,6 +738,24 @@ int ogs_sbi_parse_request(
             if (v) {
                 ogs_sbi_discovery_option_parse_service_names(
                         discovery_option, v);
+                discovery_option_presence = true;
+            }
+        } else if (!strcmp(ogs_hash_this_key(hi),
+                    OGS_SBI_PARAM_TARGET_PLMN_LIST)) {
+            char *v = ogs_hash_this_val(hi);
+            if (v) {
+                discovery_option->num_of_target_plmn_list =
+                    ogs_sbi_discovery_option_parse_plmn_list(
+                        discovery_option->target_plmn_list, v);
+                discovery_option_presence = true;
+            }
+        } else if (!strcmp(ogs_hash_this_key(hi),
+                    OGS_SBI_PARAM_REQUESTER_PLMN_LIST)) {
+            char *v = ogs_hash_this_val(hi);
+            if (v) {
+                discovery_option->num_of_requester_plmn_list =
+                    ogs_sbi_discovery_option_parse_plmn_list(
+                        discovery_option->requester_plmn_list, v);
                 discovery_option_presence = true;
             }
         } else if (!strcmp(ogs_hash_this_key(hi),
@@ -1201,7 +1249,7 @@ static char *build_json(ogs_sbi_message_t *message)
     }
 
     if (item) {
-        content = cJSON_Print(item);
+        content = cJSON_PrintUnformatted(item);
         ogs_assert(content);
         ogs_log_print(OGS_LOG_TRACE, "%s", content);
         cJSON_Delete(item);
@@ -2738,6 +2786,7 @@ void ogs_sbi_discovery_option_set_requester_nf_instance_id(
         ogs_strdup(requester_nf_instance_id);
     ogs_assert(discovery_option->requester_nf_instance_id);
 }
+
 void ogs_sbi_discovery_option_add_service_names(
         ogs_sbi_discovery_option_t *discovery_option,
         char *service_name)
@@ -2799,4 +2848,112 @@ void ogs_sbi_discovery_option_parse_service_names(
     }
 
     ogs_free(v);
+}
+
+void ogs_sbi_discovery_option_add_target_plmn_list(
+        ogs_sbi_discovery_option_t *discovery_option,
+        ogs_plmn_id_t *target_plmn_id)
+{
+    ogs_assert(discovery_option);
+    ogs_assert(target_plmn_id);
+
+    ogs_assert(discovery_option->num_of_target_plmn_list <
+                OGS_MAX_NUM_OF_PLMN);
+
+    memcpy(&discovery_option->target_plmn_list[
+        discovery_option->num_of_target_plmn_list],
+        target_plmn_id, OGS_PLMN_ID_LEN);
+    discovery_option->num_of_target_plmn_list++;
+}
+
+void ogs_sbi_discovery_option_add_requester_plmn_list(
+        ogs_sbi_discovery_option_t *discovery_option,
+        ogs_plmn_id_t *requester_plmn_id)
+{
+    ogs_assert(discovery_option);
+    ogs_assert(requester_plmn_id);
+
+    ogs_assert(discovery_option->num_of_requester_plmn_list <
+                OGS_MAX_NUM_OF_PLMN);
+
+    memcpy(&discovery_option->requester_plmn_list[
+        discovery_option->num_of_requester_plmn_list],
+        requester_plmn_id, OGS_PLMN_ID_LEN);
+    discovery_option->num_of_requester_plmn_list++;
+}
+
+char *ogs_sbi_discovery_option_build_plmn_list(
+        ogs_plmn_id_t *plmn_list, int num_of_plmn_list)
+{
+    OpenAPI_list_t *PlmnList = NULL;
+    OpenAPI_plmn_id_t *PlmnId = NULL;
+    OpenAPI_lnode_t *node = NULL;
+    cJSON *item = NULL;
+
+    char *v = NULL;
+
+    ogs_assert(plmn_list);
+    ogs_assert(num_of_plmn_list);
+
+    PlmnList = ogs_sbi_build_plmn_list(plmn_list, num_of_plmn_list);
+    ogs_assert(PlmnList);
+
+    item = cJSON_CreateArray();
+    ogs_assert(item);
+
+    OpenAPI_list_for_each(PlmnList, node) {
+        PlmnId = node->data;
+        if (PlmnId) {
+            cJSON *PlmnIdItem = OpenAPI_plmn_id_convertToJSON(PlmnId);
+            ogs_assert(PlmnIdItem);
+            cJSON_AddItemToArray(item, PlmnIdItem);
+        }
+    }
+
+    v = cJSON_PrintUnformatted(item);
+    ogs_assert(v);
+
+    cJSON_Delete(item);
+
+    ogs_sbi_free_plmn_list(PlmnList);
+
+    return v;
+}
+
+int ogs_sbi_discovery_option_parse_plmn_list(
+        ogs_plmn_id_t *plmn_list, char *v)
+{
+    cJSON *item = NULL;
+    cJSON *PlmnIdJSON = NULL;
+    OpenAPI_list_t *PlmnList = NULL;
+    OpenAPI_plmn_id_t *PlmnId = NULL;
+    int num_of_plmn_list = 0;
+
+    ogs_assert(v);
+    ogs_assert(plmn_list);
+
+    item = cJSON_Parse(v);
+    if (item) {
+        PlmnList = OpenAPI_list_create();
+        ogs_assert(PlmnList);
+        cJSON_ArrayForEach(PlmnIdJSON, item) {
+            if (!cJSON_IsObject(PlmnIdJSON)) {
+                ogs_error("Unknown JSON");
+                goto cleanup;
+            }
+
+            PlmnId = OpenAPI_plmn_id_parseFromJSON(PlmnIdJSON);
+            ogs_assert(PlmnId);
+
+            OpenAPI_list_add(PlmnList, PlmnId);
+        }
+    }
+
+    num_of_plmn_list = ogs_sbi_parse_plmn_list(plmn_list, PlmnList);
+
+cleanup:
+    ogs_sbi_free_plmn_list(PlmnList);
+    cJSON_Delete(item);
+
+    return num_of_plmn_list;
 }

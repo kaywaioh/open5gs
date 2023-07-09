@@ -490,7 +490,7 @@ void smf_5gc_n4_handle_session_modification_response(
             ogs_list_for_each_entry_safe(&sess->qos_flow_to_modify_list,
                     next, qos_flow, to_modify_node) {
                 smf_metrics_inst_by_5qi_add(
-                        &qos_flow->sess->plmn_id,
+                        &qos_flow->sess->serving_plmn_id,
                         &qos_flow->sess->s_nssai,
                         qos_flow->sess->session.qos.index,
                         SMF_METR_GAUGE_SM_QOSFLOWNBR, -1);
@@ -522,7 +522,7 @@ void smf_5gc_n4_handle_session_modification_response(
             ogs_list_for_each_entry_safe(&sess->qos_flow_to_modify_list,
                     next, qos_flow, to_modify_node) {
                 smf_metrics_inst_by_5qi_add(
-                        &qos_flow->sess->plmn_id,
+                        &qos_flow->sess->serving_plmn_id,
                         &qos_flow->sess->s_nssai,
                         qos_flow->sess->session.qos.index,
                         SMF_METR_GAUGE_SM_QOSFLOWNBR, -1);

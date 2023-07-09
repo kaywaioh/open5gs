@@ -2,10 +2,11 @@ db_uri: mongodb://localhost/open5gs
 
 logger:
 
-plmn:
-    - id:
-        mcc: 999
-        mnc: 70
+test:
+    serving:
+      - plmn_id:
+          mcc: 310
+          mnc: 014
 
 sbi:
     server:

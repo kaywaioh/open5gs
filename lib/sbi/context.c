@@ -81,9 +81,11 @@ void ogs_sbi_context_init(OpenAPI_nf_type_e nf_type)
     }
 
     /* Add SCP NF-Instance */
-    self.scp_instance = ogs_sbi_nf_instance_add();
-    ogs_assert(self.scp_instance);
-    ogs_sbi_nf_instance_set_type(self.scp_instance, OpenAPI_nf_type_SCP);
+    if (nf_type != OpenAPI_nf_type_NRF) {
+        self.scp_instance = ogs_sbi_nf_instance_add();
+        ogs_assert(self.scp_instance);
+        ogs_sbi_nf_instance_set_type(self.scp_instance, OpenAPI_nf_type_SCP);
+    }
 
     context_initialized = 1;
 }
@@ -500,7 +502,8 @@ int ogs_sbi_context_parse_config(
                     ogs_yaml_iter_recurse(&nrf_iter, &sbi_array);
                     do {
                         ogs_sbi_client_t *client = NULL;
-                        ogs_sockaddr_t *addr = NULL;
+                        const char *fqdn = NULL;
+                        ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
                         int family = AF_UNSPEC;
                         int i, num = 0;
                         const char *hostname[OGS_MAX_NUM_OF_HOSTNAME];
@@ -573,19 +576,26 @@ int ogs_sbi_context_parse_config(
                             ogs_assert(rv == OGS_OK);
                         }
 
-                        ogs_filter_ip_version(&addr,
-                                ogs_app()->parameter.no_ipv4,
-                                ogs_app()->parameter.no_ipv6,
-                                ogs_app()->parameter.prefer_ipv4);
+                        fqdn = ogs_gethostname(addr);
 
-                        if (addr == NULL) continue;
+                        rv = ogs_copyaddrinfo(&addr6, addr);
+                        ogs_assert(rv == OGS_OK);
 
-                        client = ogs_sbi_client_add(
-                                    ogs_sbi_client_default_scheme(), addr);
-                        ogs_assert(client);
-                        OGS_SBI_SETUP_CLIENT(self.nrf_instance, client);
+                        rv = ogs_filteraddrinfo(&addr, AF_INET);
+                        ogs_assert(rv == OGS_OK);
+                        rv = ogs_filteraddrinfo(&addr6, AF_INET6);
+                        ogs_assert(rv == OGS_OK);
+
+                        if (fqdn || addr || addr6) {
+                            client = ogs_sbi_client_add(
+                                        ogs_sbi_client_default_scheme(),
+                                        (char *)fqdn, port, addr, addr6);
+                            ogs_assert(client);
+                            OGS_SBI_SETUP_CLIENT(self.nrf_instance, client);
+                        }
 
                         ogs_freeaddrinfo(addr);
+                        ogs_freeaddrinfo(addr6);
 
                     } while (ogs_yaml_iter_type(&sbi_array) ==
                             YAML_SEQUENCE_NODE);
@@ -603,9 +613,10 @@ int ogs_sbi_context_parse_config(
                     ogs_yaml_iter_recurse(&scp_iter, &sbi_array);
                     do {
                         ogs_sbi_client_t *client = NULL;
-                        ogs_sockaddr_t *addr = NULL;
+                        ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
                         int family = AF_UNSPEC;
                         int i, num = 0;
+                        const char *fqdn = NULL;
                         const char *hostname[OGS_MAX_NUM_OF_HOSTNAME];
                         uint16_t port = ogs_sbi_client_default_port();
 
@@ -676,19 +687,26 @@ int ogs_sbi_context_parse_config(
                             ogs_assert(rv == OGS_OK);
                         }
 
-                        ogs_filter_ip_version(&addr,
-                                ogs_app()->parameter.no_ipv4,
-                                ogs_app()->parameter.no_ipv6,
-                                ogs_app()->parameter.prefer_ipv4);
+                        fqdn = ogs_gethostname(addr);
 
-                        if (addr == NULL) continue;
+                        rv = ogs_copyaddrinfo(&addr6, addr);
+                        ogs_assert(rv == OGS_OK);
 
-                        client = ogs_sbi_client_add(
-                                    ogs_sbi_client_default_scheme(), addr);
-                        ogs_assert(client);
-                        OGS_SBI_SETUP_CLIENT(self.scp_instance, client);
+                        rv = ogs_filteraddrinfo(&addr, AF_INET);
+                        ogs_assert(rv == OGS_OK);
+                        rv = ogs_filteraddrinfo(&addr6, AF_INET6);
+                        ogs_assert(rv == OGS_OK);
+
+                        if (fqdn || addr || addr6) {
+                            client = ogs_sbi_client_add(
+                                        ogs_sbi_client_default_scheme(),
+                                        (char *)fqdn, port, addr, addr6);
+                            ogs_assert(client);
+                            OGS_SBI_SETUP_CLIENT(self.scp_instance, client);
+                        }
 
                         ogs_freeaddrinfo(addr);
+                        ogs_freeaddrinfo(addr6);
 
                     } while (ogs_yaml_iter_type(&sbi_array) ==
                             YAML_SEQUENCE_NODE);
@@ -1227,7 +1245,10 @@ ogs_sbi_nf_info_t *ogs_sbi_nf_info_add(
     ogs_assert(nf_type);
 
     ogs_pool_alloc(&nf_info_pool, &nf_info);
-    ogs_assert(nf_info);
+    if (!nf_info) {
+        ogs_fatal("ogs_pool_alloc() failed");
+        return NULL;
+    }
     memset(nf_info, 0, sizeof(*nf_info));
 
     nf_info->nf_type = nf_type;
@@ -1261,6 +1282,13 @@ static void smf_info_free(ogs_sbi_smf_info_t *smf_info)
 
 static void scp_info_free(ogs_sbi_scp_info_t *scp_info)
 {
+    int i;
+    for (i = 0; i < scp_info->num_of_domain; i++) {
+        if (scp_info->domain[i].name)
+            ogs_free(scp_info->domain[i].name);
+        if (scp_info->domain[i].fqdn)
+            ogs_free(scp_info->domain[i].fqdn);
+    }
     scp_info->num_of_domain = 0;
 }
 
@@ -1372,10 +1400,10 @@ void ogs_sbi_nf_instance_build_default(ogs_sbi_nf_instance_t *nf_instance)
     nf_instance->time.heartbeat_interval =
             ogs_app()->time.nf_instance.heartbeat_interval;
 
-    if (ogs_app()->num_of_plmn_id) {
-        memcpy(nf_instance->plmn_id, ogs_app()->plmn_id,
+    if (ogs_app()->num_of_serving_plmn_id) {
+        memcpy(nf_instance->plmn_id, ogs_app()->serving_plmn_id,
                 sizeof(nf_instance->plmn_id));
-        nf_instance->num_of_plmn_id = ogs_app()->num_of_plmn_id;
+        nf_instance->num_of_plmn_id = ogs_app()->num_of_serving_plmn_id;
     }
 }
 
@@ -1453,61 +1481,65 @@ ogs_sbi_nf_service_t *ogs_sbi_nf_service_build_default(
     return nf_service;
 }
 
-static ogs_sbi_client_t *find_client_by_fqdn(
-        OpenAPI_uri_scheme_e scheme, char *fqdn)
-{
-    int rv;
-    ogs_sockaddr_t *addr = NULL;
-    ogs_sbi_client_t *client = NULL;
-
-    ogs_assert(scheme == OpenAPI_uri_scheme_https ||
-                scheme == OpenAPI_uri_scheme_http);
-    ogs_assert(fqdn);
-
-    rv = ogs_getaddrinfo(
-            &addr, AF_UNSPEC, fqdn,
-            scheme == OpenAPI_uri_scheme_https ?
-                OGS_SBI_HTTPS_PORT : OGS_SBI_HTTP_PORT,
-            0);
-    if (rv != OGS_OK) {
-        ogs_error("Invalid NFProfile.fqdn");
-        return NULL;
-    }
-
-    client = ogs_sbi_client_find(scheme, addr);
-    if (!client) {
-        client = ogs_sbi_client_add(scheme, addr);
-        ogs_assert(client);
-    }
-
-    ogs_freeaddrinfo(addr);
-
-    return client;
-}
-
 static ogs_sbi_client_t *nf_instance_find_client(
         ogs_sbi_nf_instance_t *nf_instance)
 {
     ogs_sbi_client_t *client = NULL;
-    ogs_sockaddr_t *addr = NULL;
+    ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
     OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
+
+    ogs_sbi_nf_info_t *nf_info = NULL;
+    uint16_t port = 0;
 
     scheme = ogs_sbi_client_default_scheme();
 
-    if (nf_instance->fqdn)
-        client = find_client_by_fqdn(scheme, nf_instance->fqdn);
+    switch (nf_instance->nf_type) {
+    case OpenAPI_nf_type_SEPP:
+        nf_info = ogs_sbi_nf_info_find(
+                    &nf_instance->nf_info_list, nf_instance->nf_type);
+        if (nf_info) {
+            if (scheme == OpenAPI_uri_scheme_https)
+                port = nf_info->sepp.https.port;
+            else if (scheme == OpenAPI_uri_scheme_http)
+                port = nf_info->sepp.http.port;
+            else
+                ogs_error("Unknown scheme [%d]", scheme);
+        }
+        break;
+    case OpenAPI_nf_type_SCP:
+        nf_info = ogs_sbi_nf_info_find(
+                    &nf_instance->nf_info_list, nf_instance->nf_type);
+        if (nf_info) {
+            if (scheme == OpenAPI_uri_scheme_https)
+                port = nf_info->scp.https.port;
+            else if (scheme == OpenAPI_uri_scheme_http)
+                port = nf_info->scp.http.port;
+            else
+                ogs_error("Unknown scheme [%d]", scheme);
+        }
+        break;
+    default:
+        break;
+    }
 
-    if (!client) {
-        /* At this point, CLIENT selection method is very simple. */
-        if (nf_instance->num_of_ipv4) addr = nf_instance->ipv4[0];
-        if (nf_instance->num_of_ipv6) addr = nf_instance->ipv6[0];
+    /* At this point, CLIENT selection method is very simple. */
+    if (nf_instance->num_of_ipv4) addr = nf_instance->ipv4[0];
+    if (nf_instance->num_of_ipv6) addr6 = nf_instance->ipv6[0];
 
-        if (addr) {
-            client = ogs_sbi_client_find(scheme, addr);
-            if (!client) {
-                client = ogs_sbi_client_add(scheme, addr);
-                ogs_assert(client);
-            }
+    if (port) {
+        if (addr)
+            addr->ogs_sin_port = htobe16(port);
+        if (addr6)
+            addr6->ogs_sin_port = htobe16(port);
+    }
+
+    if (nf_instance->fqdn || addr || addr6) {
+        client = ogs_sbi_client_find(
+                scheme, nf_instance->fqdn, port, addr, addr6);
+        if (!client) {
+            client = ogs_sbi_client_add(
+                    scheme, nf_instance->fqdn, port, addr, addr6);
+            ogs_assert(client);
         }
     }
 
@@ -1517,27 +1549,23 @@ static ogs_sbi_client_t *nf_instance_find_client(
 static void nf_service_associate_client(ogs_sbi_nf_service_t *nf_service)
 {
     ogs_sbi_client_t *client = NULL;
-    ogs_sockaddr_t *addr = NULL;
+    ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
 
     ogs_assert(nf_service->scheme);
 
-    if (nf_service->fqdn)
-        client = find_client_by_fqdn(nf_service->scheme, nf_service->fqdn);
+    /* At this point, CLIENT selection method is very simple. */
+    if (nf_service->num_of_addr) {
+        addr = nf_service->addr[0].ipv4;
+        addr6 = nf_service->addr[0].ipv6;
+    }
 
-    if (!client) {
-        /* At this point, CLIENT selection method is very simple. */
-        if (nf_service->num_of_addr) {
-            addr = nf_service->addr[0].ipv6;
-            if (!addr)
-                addr = nf_service->addr[0].ipv4;
-        }
-
-        if (addr) {
-            client = ogs_sbi_client_find(nf_service->scheme, addr);
-            if (!client) {
-                client = ogs_sbi_client_add(nf_service->scheme, addr);
-                ogs_assert(client);
-            }
+    if (nf_service->fqdn || addr || addr6) {
+        client = ogs_sbi_client_find(
+                nf_service->scheme, nf_service->fqdn, 0, addr, addr6);
+        if (!client) {
+            client = ogs_sbi_client_add(
+                    nf_service->scheme, nf_service->fqdn, 0, addr, addr6);
+            ogs_assert(client);
         }
     }
 
@@ -1571,30 +1599,115 @@ bool ogs_sbi_discovery_option_is_matched(
     }
 
     if (discovery_option->num_of_service_names) {
-        ogs_sbi_nf_service_t *nf_service = NULL;
+        if (ogs_sbi_discovery_option_service_names_is_matched(
+                    nf_instance, requester_nf_type, discovery_option) == false)
+            return false;
+    }
 
-        bool exist = false;
-        int i;
-
-        ogs_list_for_each(&nf_instance->nf_service_list, nf_service) {
-            for (i = 0; i < discovery_option->num_of_service_names; i++) {
-                if (nf_service->name &&
-                    discovery_option->service_names[i] &&
-                    strcmp(nf_service->name,
-                        discovery_option->service_names[i]) == 0) {
-                    if (ogs_sbi_nf_service_is_allowed_nf_type(
-                            nf_service, requester_nf_type) == true) {
-                        exist = true;
-                        break;
-                    }
-                }
-            }
-            if (exist == true) break;
-        }
-        if (exist == false) return false;
+    if (discovery_option->num_of_target_plmn_list) {
+        if (ogs_sbi_discovery_option_target_plmn_list_is_matched(
+                    nf_instance, discovery_option) == false)
+            return false;
     }
 
     return true;
+}
+
+bool ogs_sbi_discovery_option_service_names_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance,
+        OpenAPI_nf_type_e requester_nf_type,
+        ogs_sbi_discovery_option_t *discovery_option)
+{
+    ogs_sbi_nf_service_t *nf_service = NULL;
+    int i;
+
+    ogs_assert(nf_instance);
+    ogs_assert(requester_nf_type);
+    ogs_assert(discovery_option);
+
+    ogs_list_for_each(&nf_instance->nf_service_list, nf_service) {
+        for (i = 0; i < discovery_option->num_of_service_names; i++) {
+            if (nf_service->name &&
+                discovery_option->service_names[i] &&
+                strcmp(nf_service->name,
+                    discovery_option->service_names[i]) == 0) {
+                if (ogs_sbi_nf_service_is_allowed_nf_type(
+                        nf_service, requester_nf_type) == true) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool ogs_sbi_discovery_param_serving_plmn_list_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance)
+{
+    int i, j;
+
+    ogs_assert(nf_instance);
+
+    /*
+     * The PLMN-ID is optional and may not be set.
+     *
+     * Does not compare if serving PLMN-ID is not set or NF-Instance is not set.
+     */
+    if (ogs_app()->num_of_serving_plmn_id == 0 ||
+            nf_instance->num_of_plmn_id == 0)
+        return true;
+
+    for (i = 0; i < nf_instance->num_of_plmn_id; i++) {
+        for (j = 0; j < ogs_app()->num_of_serving_plmn_id; j++) {
+            if (memcmp(&nf_instance->plmn_id[i], &ogs_app()->serving_plmn_id[j],
+                       OGS_PLMN_ID_LEN) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool ogs_sbi_discovery_option_requester_plmn_list_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance,
+        ogs_sbi_discovery_option_t *discovery_option)
+{
+    int i, j;
+
+    ogs_assert(nf_instance);
+    ogs_assert(discovery_option);
+
+    for (i = 0; i < nf_instance->num_of_plmn_id; i++) {
+        for (j = 0; j < discovery_option->num_of_requester_plmn_list; j++) {
+            if (memcmp(&nf_instance->plmn_id[i],
+                       &discovery_option->requester_plmn_list[j],
+                       OGS_PLMN_ID_LEN) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool ogs_sbi_discovery_option_target_plmn_list_is_matched(
+        ogs_sbi_nf_instance_t *nf_instance,
+        ogs_sbi_discovery_option_t *discovery_option)
+{
+    int i, j;
+
+    ogs_assert(nf_instance);
+    ogs_assert(discovery_option);
+
+    for (i = 0; i < nf_instance->num_of_plmn_id; i++) {
+        for (j = 0; j < discovery_option->num_of_target_plmn_list; j++) {
+            if (memcmp(&nf_instance->plmn_id[i],
+                       &discovery_option->target_plmn_list[j],
+                       OGS_PLMN_ID_LEN) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool ogs_sbi_discovery_param_is_matched(
@@ -1616,10 +1729,59 @@ bool ogs_sbi_discovery_param_is_matched(
     if (nf_instance->nf_type != target_nf_type)
         return false;
 
-    if (discovery_option &&
-        ogs_sbi_discovery_option_is_matched(
+    /*
+     * For the same PLMN, The target-plmn-list may not be included
+     * in discovery request.
+     *
+     * If the Serving PLMN needs to be discovered, but the target-plmn-list
+     * is not included, the NF of the Home PLMN can be discovered.
+     *
+     * To avoid this situation, if the target-plmn-list is not included
+     * and the serving PLMN is known, it is compared first.
+     *
+     * Refer to the following standard for this issue.
+     *
+     * TS29.510
+     * 6.2 Nnrf_NFDiscovery Service API
+     * 6.2.3 Resources
+     * Table 6.2.3.2.3.1-1: URI query parameters supported
+     * by the GET method on this resource
+     *
+     * NAME: target-plmn-list
+     * Data type: array(PlmnId)
+     * P: C
+     * Cardinality: 1..N
+     *
+     * This IE shall be included when NF services in a different PLMN,
+     * or NF services of specific PLMN ID(s) in a same PLMN
+     * comprising multiple PLMN IDs, need to be discovered.
+     * When included, this IE shall contain the PLMN ID of the target NF.
+     * If more than one PLMN ID is included, NFs from any PLMN ID present
+     * in the list matches the query parameter. This IE shall also
+     * be included in SNPN scenarios, when the entity owning
+     * the subscription, the Credentials Holder
+     * (see clause 5.30.2.9 in 3GPP TS 23.501 [2]) is a PLMN.
+     *
+     * For inter-PLMN service discovery, at most 1 PLMN ID shall
+     * be included in the list; it shall be included
+     * in the service discovery from the NF in the source PLMN sent
+     * to the NRF in the same PLMN, while it may be absent
+     * in the service discovery request sent from the source NRF
+     * to the target NRF. In such case, if the NRF receives more than
+     * 1 PLMN ID, it shall only consider the first element of the array,
+     * and ignore the rest.
+     */
+    if (!discovery_option || !discovery_option->num_of_target_plmn_list) {
+        if (ogs_sbi_discovery_param_serving_plmn_list_is_matched(
+                nf_instance) == false)
+            return false;
+    }
+
+    if (discovery_option) {
+        if (ogs_sbi_discovery_option_is_matched(
             nf_instance, requester_nf_type, discovery_option) == false)
         return false;
+    }
 
     return true;
 }
@@ -1850,6 +2012,9 @@ void ogs_sbi_xact_remove(ogs_sbi_xact_t *xact)
     if (xact->request)
         ogs_sbi_request_free(xact->request);
 
+    if (xact->target_apiroot)
+        ogs_free(xact->target_apiroot);
+
     ogs_list_remove(&sbi_object->xact_list, xact);
     ogs_pool_free(&xact_pool, xact);
 }
@@ -2008,4 +2173,100 @@ ogs_sbi_subscription_data_t *ogs_sbi_subscription_data_find(char *id)
     }
 
     return subscription_data;
+}
+
+bool ogs_sbi_supi_in_vplmn(char *supi)
+{
+    char imsi_bcd[OGS_MAX_IMSI_BCD_LEN+1];
+    bool home_network = false;
+    int i;
+
+    ogs_assert(supi);
+
+    if (ogs_app()->num_of_serving_plmn_id == 0) {
+        return false;
+    }
+
+    ogs_extract_digit_from_string(imsi_bcd, supi);
+
+    for (i = 0; i < ogs_app()->num_of_serving_plmn_id; i++) {
+        char buf[OGS_PLMNIDSTRLEN];
+        ogs_plmn_id_to_string(&ogs_app()->serving_plmn_id[i], buf);
+
+        if (strncmp(imsi_bcd, buf, strlen(buf)) == 0) {
+            home_network = true;
+            break;
+        }
+    }
+
+    if (home_network == false)
+        return true;
+
+    return false;
+}
+
+bool ogs_sbi_plmn_id_in_vplmn(ogs_plmn_id_t *plmn_id)
+{
+    bool home_network = false;
+    int i;
+
+    ogs_assert(plmn_id);
+
+    if (ogs_app()->num_of_serving_plmn_id == 0) {
+        return false;
+    }
+
+    if (ogs_plmn_id_mcc(plmn_id) == 0) {
+        ogs_error("No MCC");
+        return false;
+    }
+
+    if (ogs_plmn_id_mnc(plmn_id) == 0) {
+        ogs_error("No MNC");
+        return false;
+    }
+
+    for (i = 0; i < ogs_app()->num_of_serving_plmn_id; i++) {
+        if (memcmp(&ogs_app()->serving_plmn_id[i],
+                    plmn_id, OGS_PLMN_ID_LEN) == 0) {
+            home_network = true;
+            break;
+        }
+    }
+
+    if (home_network == false)
+        return true;
+
+    return false;
+}
+
+bool ogs_sbi_fqdn_in_vplmn(char *fqdn)
+{
+    bool home_network = false;
+    int i;
+
+    ogs_assert(fqdn);
+
+    if (ogs_app()->num_of_serving_plmn_id == 0) {
+        return false;
+    }
+
+    if (ogs_home_network_domain_from_fqdn(fqdn) == NULL) {
+        return false;
+    }
+
+    for (i = 0; i < ogs_app()->num_of_serving_plmn_id; i++) {
+        if (ogs_plmn_id_mcc_from_fqdn(fqdn) ==
+            ogs_plmn_id_mcc(&ogs_app()->serving_plmn_id[i]) &&
+            ogs_plmn_id_mnc_from_fqdn(fqdn) ==
+            ogs_plmn_id_mnc(&ogs_app()->serving_plmn_id[i])) {
+            home_network = true;
+            break;
+        }
+    }
+
+    if (home_network == false)
+        return true;
+
+    return false;
 }

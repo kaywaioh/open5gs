@@ -422,7 +422,7 @@ sbi:
 #
 #  If access_control is not specified, then all networks are allowed
 #  If access_control is defined,
-#  no other networks are allowed  other than matching plmn_id.
+#  no other networks are allowed other than matching plmn_id.
 #
 #  default_reject_cause may be used to overwrite the default error cause #11
 #  for non matching plmn_id

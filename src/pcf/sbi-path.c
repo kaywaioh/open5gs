@@ -342,7 +342,10 @@ bool pcf_sbi_send_smpolicycontrol_delete_notify(
 
     rc = ogs_sbi_send_request_to_client(
             client, client_delete_notify_cb, request, app_session);
-    ogs_expect(rc == true);
+    if (rc == false) {
+        ogs_error("ogs_sbi_send_request_to_client() failed");
+        pcf_app_remove(app_session);
+    }
 
     ogs_sbi_request_free(request);
 

@@ -39,14 +39,6 @@ logger:
 #    - id:
 #        mcc: 002
 #        mnc: 02
-#
-plmn:
-    - id:
-        mcc: 001
-        mnc: 01
-    - id:
-        mcc: 002
-        mnc: 02
 
 #
 #  o TLS enable/disable
@@ -252,41 +244,26 @@ sbi:
 #  o SEPP1
 #
 #  sepp:
-#    fqdn: sepp1.localdomain
 #    sbi:
-#      - addr: 127.0.2.10
+#      - fqdn: sepp1.localdomain
 #        port: 7777
 #    peer:
-#      - fqdn: sepp2.localdomain
-#        uri: http://127.0.2.11:7777
-#        plmn_id:
-#          mcc: 999
-#          mnc: 70
+#      - uri: http://sepp2.localdomain:7777
 #
 #  o SEPP2
 #
 #  sepp:
-#    fqdn: sepp2.localdomain
 #    sbi:
-#      - addr: 127.0.2.11
+#      - fqdn: sepp2.localdomain
 #        port: 7777
 #    peer:
-#      - fqdn: sepp1.localdomain
-#        uri: http://127.0.2.10:7777
-#        plmn_id:
-#          mcc: 001
-#          mnc: 01
+#      - uri: http://sepp1.localdomain:7777
 sepp:
-    fqdn: sepp1.localdomain
     sbi:
-      - addr: 127.0.2.10
+      - addr: sepp1.localdomain
         port: 7777
     peer:
-      - fqdn: sepp2.localdomain
-        uri: http://127.0.2.11:7777
-        plmn_id:
-          mcc: 999
-          mnc: 70
+        uri: http://sepp2.localdomain:7777
 
 #
 #  <SBI Client>>

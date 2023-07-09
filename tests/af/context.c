@@ -266,42 +266,10 @@ af_sess_t *af_sess_find_by_pcf_app_session_id(char *pcf_app_session_id)
                         pcf_app_session_id, strlen(pcf_app_session_id));
 }
 
-static ogs_sbi_client_t *find_client_by_fqdn(
-        OpenAPI_uri_scheme_e scheme, char *fqdn)
-{
-    int rv;
-    ogs_sockaddr_t *addr = NULL;
-    ogs_sbi_client_t *client = NULL;
-
-    ogs_assert(scheme == OpenAPI_uri_scheme_https ||
-                scheme == OpenAPI_uri_scheme_http);
-    ogs_assert(fqdn);
-
-    rv = ogs_getaddrinfo(
-            &addr, AF_UNSPEC, fqdn,
-            scheme == OpenAPI_uri_scheme_https ?
-                OGS_SBI_HTTPS_PORT : OGS_SBI_HTTP_PORT,
-            0);
-    if (rv != OGS_OK) {
-        ogs_error("Invalid NFProfile.fqdn");
-        return NULL;
-    }
-
-    client = ogs_sbi_client_find(scheme, addr);
-    if (!client) {
-        client = ogs_sbi_client_add(scheme, addr);
-        ogs_assert(client);
-    }
-
-    ogs_freeaddrinfo(addr);
-
-    return client;
-}
-
 void af_sess_associate_pcf_client(af_sess_t *sess)
 {
     ogs_sbi_client_t *client = NULL;
-    ogs_sockaddr_t *addr = NULL;
+    ogs_sockaddr_t *addr = NULL, *addr6 = NULL;
     OpenAPI_uri_scheme_e scheme = OpenAPI_uri_scheme_NULL;
 
     ogs_assert(sess);
@@ -309,21 +277,19 @@ void af_sess_associate_pcf_client(af_sess_t *sess)
     scheme = ogs_app()->sbi.client.no_tls == false ?
                 OpenAPI_uri_scheme_https : OpenAPI_uri_scheme_http;
 
-    if (sess->pcf.fqdn && strlen(sess->pcf.fqdn))
-        client = find_client_by_fqdn(scheme, sess->pcf.fqdn);
-
     if (!client) {
         /* At this point, CLIENT selection method is very simple. */
         if (sess->pcf.num_of_ip) {
-            addr = sess->pcf.ip[0].addr6;
-            if (!addr)
-                addr = sess->pcf.ip[0].addr;
+            addr = sess->pcf.ip[0].addr;
+            addr6 = sess->pcf.ip[0].addr6;
         }
 
-        if (addr) {
-            client = ogs_sbi_client_find(scheme, addr);
+        if (sess->pcf.fqdn || addr || addr6) {
+            client = ogs_sbi_client_find(
+                    scheme, sess->pcf.fqdn, 0, addr, addr6);
             if (!client) {
-                client = ogs_sbi_client_add(scheme, addr);
+                client = ogs_sbi_client_add(
+                        scheme, sess->pcf.fqdn, 0, addr, addr6);
                 ogs_assert(client);
             }
         }

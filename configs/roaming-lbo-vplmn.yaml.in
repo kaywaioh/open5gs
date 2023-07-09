@@ -2,11 +2,6 @@ db_uri: mongodb://localhost/open5gs
 
 logger:
 
-plmn:
-    - id:
-        mcc: 001
-        mnc: 01
-
 sbi:
     server:
       no_tls: true
@@ -26,12 +21,12 @@ parameter:
 #    no_amf: true
 #    no_smf: true
 #    no_upf: true
-    no_ausf: true
-    no_udm: true
+#    no_ausf: true
+#    no_udm: true
 #    no_pcf: true
 #    no_nssf: true
 #    no_bsf: true
-    no_udr: true
+#    no_udr: true
     no_mme: true
     no_sgwc: true
     no_sgwu: true
@@ -138,6 +133,13 @@ amf:
     metrics:
       addr: 127.0.0.5
       port: 9090
+    access_control:
+      - plmn_id:
+          mcc: 999
+          mnc: 70
+      - plmn_id:
+          mcc: 001
+          mnc: 01
     guami:
       - plmn_id:
           mcc: 999
@@ -219,6 +221,10 @@ pcrf:
           addr: 127.0.0.4
 
 nrf:
+    serving:
+      - plmn_id:
+          mcc: 999
+          mnc: 70
     sbi:
       - addr: 127.0.0.10
         port: 7777
@@ -229,16 +235,11 @@ scp:
         port: 7777
 
 sepp:
-    fqdn: sepp1.localdomain
     sbi:
-      - addr: 127.0.2.10
+      - addr: sepp1.localdomain
         port: 7777
     peer:
-      - fqdn: sepp2.localdomain
-        uri: http://127.0.2.11:7777
-        plmn_id:
-          mcc: 999
-          mnc: 70
+      - uri: http://sepp2.localdomain:7777
 
 ausf:
     sbi:

@@ -282,6 +282,10 @@ extern "C" {
     OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_REQUESTER_NF_INSTANCE_ID
 #define OGS_SBI_CUSTOM_DISCOVERY_SERVICE_NAMES  \
     OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_SERVICE_NAMES
+#define OGS_SBI_CUSTOM_DISCOVERY_TARGET_PLMN_LIST  \
+    OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_TARGET_PLMN_LIST
+#define OGS_SBI_CUSTOM_DISCOVERY_REQUESTER_PLMN_LIST  \
+    OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_REQUESTER_PLMN_LIST
 #define OGS_SBI_CUSTOM_DISCOVERY_REQUESTER_FEATURES  \
     OGS_SBI_CUSTOM_DISCOVERY_COMMON OGS_SBI_PARAM_REQUESTER_FEATURES
 #define OGS_SBI_CUSTOM_PRODUCER_ID       \
@@ -308,6 +312,8 @@ extern "C" {
 #define OGS_SBI_PARAM_TARGET_NF_INSTANCE_ID         "target-nf-instance-id"
 #define OGS_SBI_PARAM_REQUESTER_NF_INSTANCE_ID      "requester-nf-instance-id"
 #define OGS_SBI_PARAM_SERVICE_NAMES                 "service-names"
+#define OGS_SBI_PARAM_TARGET_PLMN_LIST              "target-plmn-list"
+#define OGS_SBI_PARAM_REQUESTER_PLMN_LIST           "requester-plmn-list"
 #define OGS_SBI_PARAM_REQUESTER_FEATURES            "requester-features"
 
 #define OGS_SBI_PARAM_NF_ID                         "nf-id"
@@ -409,6 +415,12 @@ typedef struct ogs_sbi_discovery_option_s {
 
     int num_of_service_names;
     char *service_names[OGS_SBI_MAX_NUM_OF_SERVICE_TYPE];
+
+    int num_of_target_plmn_list;
+    ogs_plmn_id_t target_plmn_list[OGS_MAX_NUM_OF_PLMN];
+
+    int num_of_requester_plmn_list;
+    ogs_plmn_id_t requester_plmn_list[OGS_MAX_NUM_OF_PLMN];
 
     uint64_t requester_features;
 } ogs_sbi_discovery_option_t;
@@ -604,6 +616,19 @@ char *ogs_sbi_discovery_option_build_service_names(
 void ogs_sbi_discovery_option_parse_service_names(
         ogs_sbi_discovery_option_t *discovery_option,
         char *service_names);
+
+void ogs_sbi_discovery_option_add_target_plmn_list(
+        ogs_sbi_discovery_option_t *discovery_option,
+        ogs_plmn_id_t *target_plmn_id);
+void ogs_sbi_discovery_option_add_requester_plmn_list(
+        ogs_sbi_discovery_option_t *discovery_option,
+        ogs_plmn_id_t *requester_plmn_id);
+
+char *ogs_sbi_discovery_option_build_plmn_list(
+        ogs_plmn_id_t *plmn_list, int num_of_plmn_list);
+int ogs_sbi_discovery_option_parse_plmn_list(
+        ogs_plmn_id_t *plmn_list, char *v);
+
 
 #ifdef __cplusplus
 }
